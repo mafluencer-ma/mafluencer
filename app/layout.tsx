@@ -4,9 +4,9 @@ import "./globals.css";
 import Providers from "@/components/providers";
 
 const inter = Inter({
-  subsets: ["latin"],
+  subsets:  ["latin"],
   variable: "--font-inter",
-  display: "swap",
+  display:  "swap",
 });
 
 export const viewport: Viewport = {
@@ -15,19 +15,23 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Mafluencer — Plateforme de challenges créatifs au Maroc",
+    default:  "Mafluencer — La plateforme des créateurs au Maroc",
     template: "%s | Mafluencer",
   },
   description:
-    "Relève des défis créatifs hebdomadaires, construis ton Mafluencer Score et connecte-toi avec les meilleures marques marocaines.",
+    "Relève des défis créatifs hebdomadaires, construis ton Mafluencer Score et décroche des missions payantes avec les meilleures marques marocaines.",
   keywords: ["influenceur", "maroc", "creator", "challenges", "TikTok", "Instagram", "brand"],
+  icons: {
+    icon:    "/fav.png",
+    apple:   "/fav.png",
+  },
   openGraph: {
-    title: "Mafluencer",
+    title:       "Mafluencer",
     description: "La plateforme des créateurs de contenu au Maroc",
-    url: "https://mafluencer.ma",
-    siteName: "Mafluencer",
-    locale: "fr_MA",
-    type: "website",
+    url:         "https://mafluencer.ma",
+    siteName:    "Mafluencer",
+    locale:      "fr_MA",
+    type:        "website",
   },
   robots: { index: true, follow: true },
 };

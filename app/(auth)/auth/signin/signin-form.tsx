@@ -3,16 +3,17 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { Mail, ArrowRight } from "lucide-react";
+import Image from "next/image";
+import { Mail, ArrowRight, CheckCircle } from "lucide-react";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import toast from "react-hot-toast";
 
 export default function SigninForm() {
-  const [email, setEmail] = useState("");
-  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [email,         setEmail]         = useState("");
+  const [loadingEmail,  setLoadingEmail]  = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSent,     setEmailSent]     = useState(false);
 
   async function handleEmailSignin(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +25,7 @@ export default function SigninForm() {
         toast.error("Erreur lors de l'envoi du lien. Réessaie.");
       } else {
         setEmailSent(true);
-        toast.success("Lien envoyé ! Vérifie ta boîte mail.");
+        toast.success("Lien envoyé !");
       }
     } catch {
       toast.error("Une erreur est survenue.");
@@ -44,30 +45,34 @@ export default function SigninForm() {
   }
 
   return (
-    <div className="w-full max-w-md fade-in">
-      <div className="glass rounded-[20px] p-8 shadow-2xl shadow-indigo-500/5">
+    <div className="w-full max-w-md">
+      <div className="bg-[#1E293B]/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/40">
+
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-[16px] bg-gradient-to-br from-indigo-500/20 to-pink-500/20 border border-indigo-500/20 mb-4">
-            <span className="text-2xl">✨</span>
+          <div className="flex justify-center mb-5">
+            <div className="relative w-12 h-12">
+              <Image src="/logo.png" alt="Mafluencer" fill className="object-contain" />
+            </div>
           </div>
-          <h1 className="text-2xl font-heading font-bold text-slate-100">
+          <h1 className="text-2xl font-heading font-bold text-slate-100 tracking-tight">
             Content de te revoir
           </h1>
-          <p className="text-sm text-slate-500 mt-1.5">
+          <p className="text-sm text-slate-500 mt-2">
             Connecte-toi pour accéder à ton dashboard
           </p>
         </div>
 
         {emailSent ? (
-          <div className="text-center py-4 space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-              <Mail size={28} className="text-emerald-400" />
+          <div className="text-center py-4 space-y-5">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <CheckCircle size={28} className="text-emerald-400" />
             </div>
             <div>
-              <p className="font-semibold text-slate-200">Vérifie ta boîte mail !</p>
-              <p className="text-sm text-slate-500 mt-1">
-                On a envoyé un lien magique à <span className="text-indigo-400">{email}</span>
+              <p className="font-semibold text-slate-200">Vérifie ta boîte mail</p>
+              <p className="text-sm text-slate-500 mt-1.5">
+                Lien magique envoyé à{" "}
+                <span className="text-indigo-400 font-medium">{email}</span>
               </p>
             </div>
             <button
@@ -87,7 +92,7 @@ export default function SigninForm() {
               onClick={handleGoogleSignin}
               loading={loadingGoogle}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
@@ -98,9 +103,9 @@ export default function SigninForm() {
 
             {/* Divider */}
             <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-white/8" />
-              <span className="text-xs text-slate-600">ou par email</span>
-              <div className="flex-1 h-px bg-white/8" />
+              <div className="flex-1 h-px bg-white/[0.06]" />
+              <span className="text-xs text-slate-600 font-medium">ou par email</span>
+              <div className="flex-1 h-px bg-white/[0.06]" />
             </div>
 
             {/* Email form */}
@@ -121,7 +126,7 @@ export default function SigninForm() {
                 className="w-full"
                 loading={loadingEmail}
               >
-                Recevoir le lien magique
+                Recevoir le lien de connexion
                 <ArrowRight size={16} />
               </Button>
             </form>
@@ -131,7 +136,7 @@ export default function SigninForm() {
         {/* Footer */}
         <p className="text-center text-xs text-slate-600 mt-6">
           Pas encore de compte ?{" "}
-          <Link href="/auth/register" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+          <Link href="/auth/register" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
             S&apos;inscrire gratuitement
           </Link>
         </p>

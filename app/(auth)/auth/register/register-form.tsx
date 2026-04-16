@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { Mail, ArrowRight, Video, Briefcase, Check, Sparkles, TrendingUp } from "lucide-react";
+import Image from "next/image";
+import { Mail, ArrowRight, Video, Briefcase, Check, TrendingUp, CheckCircle, ChevronLeft } from "lucide-react";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -13,56 +14,55 @@ type Role = "CREATOR" | "BRAND";
 
 const roleOptions = [
   {
-    value: "CREATOR" as Role,
-    label: "Creator",
+    value:    "CREATOR" as Role,
+    label:    "Creator",
     subtitle: "Influenceur / Créateur de contenu",
-    icon: Video,
+    icon:     Video,
     gradient: "from-indigo-500 to-pink-500",
+    accent:   "indigo",
     perks: [
       "Relève des défis hebdomadaires",
       "Construis ton Mafluencer Score",
       "Reçois des missions payantes",
       "Accède au leaderboard public",
     ],
-    emoji: "🎬",
   },
   {
-    value: "BRAND" as Role,
-    label: "Brand",
+    value:    "BRAND" as Role,
+    label:    "Brand",
     subtitle: "Marque / Agence marketing",
-    icon: Briefcase,
+    icon:     Briefcase,
     gradient: "from-amber-500 to-orange-500",
+    accent:   "amber",
     perks: [
       "Découvre les meilleurs creators",
       "Lance des défis sponsorisés",
       "Crée des missions ciblées",
       "Mesure le ROI en temps réel",
     ],
-    emoji: "🏢",
   },
 ];
 
 export default function RegisterForm() {
-  const [role, setRole] = useState<Role>("CREATOR");
-  const [email, setEmail] = useState("");
-  const [step, setStep] = useState<"role" | "auth">("role");
-  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [role,          setRole]          = useState<Role>("CREATOR");
+  const [email,         setEmail]         = useState("");
+  const [step,          setStep]          = useState<"role" | "auth">("role");
+  const [loadingEmail,  setLoadingEmail]  = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSent,     setEmailSent]     = useState(false);
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return;
     setLoadingEmail(true);
     try {
-      // Store role in cookie/session to set after auth
       document.cookie = `pending_role=${role};path=/;max-age=600`;
       const res = await signIn("resend", { email, redirect: false });
       if (res?.error) {
         toast.error("Erreur lors de l'envoi du lien.");
       } else {
         setEmailSent(true);
-        toast.success("Lien magique envoyé !");
+        toast.success("Lien de connexion envoyé !");
       }
     } catch {
       toast.error("Une erreur est survenue.");
@@ -75,7 +75,7 @@ export default function RegisterForm() {
     setLoadingGoogle(true);
     document.cookie = `pending_role=${role};path=/;max-age=600`;
     try {
-      await signIn("google", { callbackUrl: `/auth/setup?role=${role}` });
+      await signIn("google", { callbackUrl: `/dashboard/${role.toLowerCase()}` });
     } catch {
       toast.error("Erreur lors de la connexion Google.");
       setLoadingGoogle(false);
@@ -83,15 +83,20 @@ export default function RegisterForm() {
   }
 
   return (
-    <div className="w-full max-w-lg fade-in">
+    <div className="w-full max-w-lg">
       {step === "role" ? (
         <div className="space-y-6">
           {/* Header */}
           <div className="text-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium mb-4">
-              <Sparkles size={12} /> Rejoins la communauté
+            <div className="flex justify-center mb-5">
+              <div className="relative w-12 h-12">
+                <Image src="/logo.png" alt="Mafluencer" fill className="object-contain" />
+              </div>
             </div>
-            <h1 className="text-3xl font-heading font-bold text-slate-100">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-4 uppercase tracking-wider">
+              Inscription gratuite
+            </div>
+            <h1 className="text-3xl font-heading font-bold text-slate-100 tracking-tight">
               Tu es Creator ou Brand ?
             </h1>
             <p className="text-slate-500 mt-2 text-sm">
@@ -100,50 +105,49 @@ export default function RegisterForm() {
           </div>
 
           {/* Role cards */}
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {roleOptions.map((option) => {
+              const Icon     = option.icon;
               const selected = role === option.value;
               return (
                 <button
                   key={option.value}
                   onClick={() => setRole(option.value)}
                   className={cn(
-                    "relative glass rounded-[16px] p-5 text-left transition-all duration-200 hover:scale-[1.01]",
+                    "relative bg-[#1E293B]/60 backdrop-blur-xl border rounded-2xl p-5 text-left transition-all duration-200",
                     selected
-                      ? "border-indigo-500/40 ring-2 ring-indigo-500/20"
-                      : "border-white/8 hover:border-white/15"
+                      ? "border-indigo-500/40 ring-1 ring-indigo-500/30 shadow-lg shadow-indigo-500/10"
+                      : "border-white/[0.08] hover:border-white/[0.15] hover:bg-[#1E293B]/80"
                   )}
                 >
-                  {/* Selected indicator */}
                   {selected && (
-                    <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center">
+                    <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center shadow-md">
                       <Check size={12} className="text-white" />
                     </div>
                   )}
 
                   <div className="flex items-start gap-4">
-                    {/* Icon */}
                     <div className={cn(
-                      "w-12 h-12 rounded-[12px] flex items-center justify-center text-2xl flex-shrink-0",
+                      "w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-all",
                       selected
                         ? `bg-gradient-to-br ${option.gradient}`
                         : "bg-slate-800"
                     )}>
-                      {option.emoji}
+                      <Icon size={20} className="text-white" />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-slate-100 text-lg">{option.label}</p>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-semibold text-slate-100">{option.label}</p>
                         {selected && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 font-medium">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 font-semibold uppercase tracking-wider">
                             Sélectionné
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">{option.subtitle}</p>
+                      <p className="text-xs text-slate-500 mb-3">{option.subtitle}</p>
 
-                      <ul className="mt-3 space-y-1.5">
+                      <ul className="space-y-1.5">
                         {option.perks.map((perk) => (
                           <li key={perk} className="flex items-center gap-2 text-xs text-slate-400">
                             <TrendingUp size={10} className="text-emerald-500 flex-shrink-0" />
@@ -158,54 +162,57 @@ export default function RegisterForm() {
             })}
           </div>
 
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
-            onClick={() => setStep("auth")}
-          >
+          <Button variant="primary" size="lg" className="w-full" onClick={() => setStep("auth")}>
             Continuer en tant que {role === "CREATOR" ? "Creator" : "Brand"}
             <ArrowRight size={16} />
           </Button>
 
           <p className="text-center text-xs text-slate-600">
             Déjà un compte ?{" "}
-            <Link href="/auth/signin" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+            <Link href="/auth/signin" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
               Se connecter
             </Link>
           </p>
         </div>
       ) : (
-        <div className="glass rounded-[20px] p-8 shadow-2xl shadow-indigo-500/5">
-          {/* Back + Header */}
+        <div className="bg-[#1E293B]/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/40">
+
+          {/* Header */}
           <div className="text-center mb-8">
             <button
               onClick={() => setStep("role")}
-              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-5"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors mb-5"
             >
-              ← Changer de rôle
+              <ChevronLeft size={14} />
+              Changer de rôle
             </button>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-medium mb-3">
-              <span>{role === "CREATOR" ? "🎬" : "🏢"}</span>
-              <span className="text-indigo-400">
-                Inscription {role === "CREATOR" ? "Creator" : "Brand"}
-              </span>
+            <div className="flex justify-center mb-4">
+              <div className={cn(
+                "w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br",
+                role === "CREATOR" ? "from-indigo-500 to-pink-500" : "from-amber-500 to-orange-500"
+              )}>
+                {role === "CREATOR"
+                  ? <Video size={20} className="text-white" />
+                  : <Briefcase size={20} className="text-white" />
+                }
+              </div>
             </div>
-            <h2 className="text-2xl font-heading font-bold text-slate-100">
-              Crée ton compte
+            <h2 className="text-2xl font-heading font-bold text-slate-100 tracking-tight">
+              Crée ton compte {role === "CREATOR" ? "Creator" : "Brand"}
             </h2>
-            <p className="text-sm text-slate-500 mt-1">C&apos;est gratuit, promis 🤝</p>
+            <p className="text-sm text-slate-500 mt-1.5">Inscription 100% gratuite</p>
           </div>
 
           {emailSent ? (
-            <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                <Mail size={28} className="text-emerald-400" />
+            <div className="text-center py-4 space-y-5">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <CheckCircle size={28} className="text-emerald-400" />
               </div>
               <div>
-                <p className="font-semibold text-slate-200">Vérifie ta boîte mail !</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  Lien magique envoyé à <span className="text-indigo-400">{email}</span>
+                <p className="font-semibold text-slate-200">Vérifie ta boîte mail</p>
+                <p className="text-sm text-slate-500 mt-1.5">
+                  Lien de connexion envoyé à{" "}
+                  <span className="text-indigo-400 font-medium">{email}</span>
                 </p>
               </div>
               <button
@@ -225,7 +232,7 @@ export default function RegisterForm() {
                 onClick={handleGoogleSignup}
                 loading={loadingGoogle}
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
@@ -236,9 +243,9 @@ export default function RegisterForm() {
 
               {/* Divider */}
               <div className="flex items-center gap-3 my-5">
-                <div className="flex-1 h-px bg-white/8" />
-                <span className="text-xs text-slate-600">ou par email</span>
-                <div className="flex-1 h-px bg-white/8" />
+                <div className="flex-1 h-px bg-white/[0.06]" />
+                <span className="text-xs text-slate-600 font-medium">ou par email</span>
+                <div className="flex-1 h-px bg-white/[0.06]" />
               </div>
 
               {/* Email form */}
@@ -252,13 +259,7 @@ export default function RegisterForm() {
                   leftIcon={<Mail size={16} />}
                   required
                 />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  loading={loadingEmail}
-                >
+                <Button type="submit" variant="primary" size="lg" className="w-full" loading={loadingEmail}>
                   Créer mon compte gratuitement
                   <ArrowRight size={16} />
                 </Button>
@@ -268,7 +269,7 @@ export default function RegisterForm() {
 
           <p className="text-center text-xs text-slate-600 mt-6">
             Déjà un compte ?{" "}
-            <Link href="/auth/signin" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+            <Link href="/auth/signin" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
               Se connecter
             </Link>
           </p>
