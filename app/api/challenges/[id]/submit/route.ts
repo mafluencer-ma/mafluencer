@@ -43,3 +43,5 @@ export async function POST(
 
   return ok({ submission }, 201);
 }
+
+export const dynamic = 'force-dynamic'

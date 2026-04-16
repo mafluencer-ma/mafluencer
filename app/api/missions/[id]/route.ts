@@ -63,3 +63,5 @@ export async function PATCH(
 
   return ok({ mission: updated });
 }
+
+export const dynamic = 'force-dynamic'

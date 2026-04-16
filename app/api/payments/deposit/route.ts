@@ -43,3 +43,5 @@ export async function POST(req: NextRequest) {
 
   return ok({ transaction, message: `${amount.toLocaleString("fr-MA")} MAD ajoutés à ton solde.` }, 201);
 }
+
+export const dynamic = 'force-dynamic'

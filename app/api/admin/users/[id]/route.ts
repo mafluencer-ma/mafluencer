@@ -54,3 +54,5 @@ export async function DELETE(
 
   return ok({ message: "Utilisateur supprimé" });
 }
+
+export const dynamic = 'force-dynamic'

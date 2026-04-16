@@ -60,3 +60,5 @@ export async function PATCH(req: NextRequest) {
 
   return ok({ message: "Notifications marquées comme lues" });
 }
+
+export const dynamic = 'force-dynamic'

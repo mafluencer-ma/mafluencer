@@ -34,3 +34,5 @@ export async function GET(req: NextRequest) {
 
   return ok({ challenges, pagination: { page, limit, total } });
 }
+
+export const dynamic = 'force-dynamic'

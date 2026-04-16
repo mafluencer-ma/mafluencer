@@ -56,3 +56,5 @@ export async function POST(
 
   return ok({ vote }, 201);
 }
+
+export const dynamic = 'force-dynamic'

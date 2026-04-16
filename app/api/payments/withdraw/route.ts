@@ -56,3 +56,5 @@ async function getCreatorBalance(userId: string): Promise<number> {
   ]);
   return (incoming._sum.amount ?? 0) - (outgoing._sum.amount ?? 0);
 }
+
+export const dynamic = 'force-dynamic'

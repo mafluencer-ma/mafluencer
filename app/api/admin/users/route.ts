@@ -53,3 +53,5 @@ export async function GET(req: NextRequest) {
     pagination: { page, limit, total },
   });
 }
+
+export const dynamic = 'force-dynamic'

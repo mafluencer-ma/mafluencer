@@ -88,3 +88,5 @@ export async function POST(req: NextRequest) {
 
   return ok({ challenge }, 201);
 }
+
+export const dynamic = 'force-dynamic'

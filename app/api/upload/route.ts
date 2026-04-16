@@ -23,3 +23,5 @@ export async function GET(req: NextRequest) {
 
   return ok({ uploadUrl, publicUrl, key });
 }
+
+export const dynamic = 'force-dynamic'

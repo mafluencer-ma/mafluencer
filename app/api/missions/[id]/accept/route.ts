@@ -35,3 +35,5 @@ export async function POST(
 
   return ok({ message: "Mission acceptée" });
 }
+
+export const dynamic = 'force-dynamic'

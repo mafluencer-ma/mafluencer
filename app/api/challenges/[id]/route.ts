@@ -109,3 +109,5 @@ export async function DELETE(
 
   return ok({ message: "Défi supprimé" });
 }
+
+export const dynamic = 'force-dynamic'

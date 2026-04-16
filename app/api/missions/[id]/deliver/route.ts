@@ -36,3 +36,5 @@ export async function POST(
 
   return ok({ message: "Contenu livré avec succès" });
 }
+
+export const dynamic = 'force-dynamic'

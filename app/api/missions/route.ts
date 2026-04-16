@@ -107,3 +107,5 @@ export async function POST(req: NextRequest) {
 
   return ok({ mission }, 201);
 }
+
+export const dynamic = 'force-dynamic'

@@ -44,3 +44,5 @@ export async function PATCH(
 
   return ok({ message: action === "PAID" ? "Retrait marqué comme payé" : "Retrait refusé" });
 }
+
+export const dynamic = 'force-dynamic'

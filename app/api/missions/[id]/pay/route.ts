@@ -67,3 +67,5 @@ export async function POST(
 
   return ok({ message: "Paiement effectué avec succès", amount: mission.budget });
 }
+
+export const dynamic = 'force-dynamic'
