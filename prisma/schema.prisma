@@ -1,0 +1,281 @@
+// Prisma Schema — Mafluencer Platform
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========== ENUMS ==========
+
+enum Role {
+  CREATOR
+  BRAND
+  ADMIN
+}
+
+enum ChallengeType {
+  FREE
+  SPONSORED
+}
+
+enum ChallengeStatus {
+  DRAFT
+  ACTIVE
+  VOTING
+  COMPLETED
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MissionType {
+  POST
+  STORY
+  VIDEO
+  UGC
+}
+
+enum MissionStatus {
+  PENDING
+  ACCEPTED
+  DELIVERED
+  PAID
+}
+
+enum TransactionType {
+  DEPOSIT
+  PAYOUT
+  COMMISSION
+  BOOST
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// ========== NextAuth Models ==========
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ========== CORE MODELS ==========
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  avatar        String?
+  image         String?
+  role          Role      @default(CREATOR)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  // App relations
+  creatorProfile  CreatorProfile?
+  brandProfile    BrandProfile?
+  submissions     Submission[]
+  missionsGiven   Mission[]        @relation("BrandMissions")
+  missionsReceived Mission[]       @relation("CreatorMissions")
+  transactionsFrom Transaction[]   @relation("FromUser")
+  transactionsTo   Transaction[]   @relation("ToUser")
+  votes           Vote[]
+  notifications   Notification[]
+  challengesCreated Challenge[]    @relation("ChallengeCreator")
+}
+
+model CreatorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  bio             String?  @db.Text
+  city            String?
+  niches          String[]
+  score           Int      @default(0)
+  level           String   @default("Rookie")
+  tiktokHandle    String?
+  instagramHandle String?
+  followersCount  Int      @default(0)
+  engagementRate  Float    @default(0)
+  pricePerPost    Float?
+  pricePerStory   Float?
+  pricePerVideo   Float?
+  portfolio       String[]
+  rating          Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BrandProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  companyName String
+  industry    String?
+  website     String?
+  logo        String?
+  balance     Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenges Challenge[] @relation("BrandChallenges")
+  missions   Mission[]   @relation("BrandProfile")
+}
+
+model Challenge {
+  id          String          @id @default(cuid())
+  title       String
+  description String          @db.Text
+  type        ChallengeType   @default(FREE)
+  brandId     String?
+  category    String
+  startDate   DateTime
+  endDate     DateTime
+  prizeAmount Float?
+  rules       String          @db.Text
+  status      ChallengeStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  brand       BrandProfile? @relation("BrandChallenges", fields: [brandId], references: [id])
+  createdBy   User?         @relation("ChallengeCreator", fields: [createdById], references: [id])
+  submissions Submission[]
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  challengeId  String
+  creatorId    String
+  videoUrl     String?
+  thumbnailUrl String?
+  caption      String?          @db.Text
+  views        Int              @default(0)
+  likes        Int              @default(0)
+  shares       Int              @default(0)
+  comments     Int              @default(0)
+  score        Float            @default(0)
+  rank         Int?
+  status       SubmissionStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  creator   User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  votes     Vote[]
+}
+
+model Mission {
+  id           String        @id @default(cuid())
+  brandId      String
+  creatorId    String
+  brandProfileId String?
+  title        String
+  brief        String        @db.Text
+  budget       Float
+  type         MissionType
+  status       MissionStatus @default(PENDING)
+  contentUrl   String?
+  deliveryDate DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  brand        User          @relation("BrandMissions", fields: [brandId], references: [id])
+  creator      User          @relation("CreatorMissions", fields: [creatorId], references: [id])
+  brandProfile BrandProfile? @relation("BrandProfile", fields: [brandProfileId], references: [id])
+}
+
+model Transaction {
+  id            String            @id @default(cuid())
+  type          TransactionType
+  fromUserId    String?
+  toUserId      String?
+  amount        Float
+  currency      String            @default("MAD")
+  status        TransactionStatus @default(PENDING)
+  paymentMethod String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  fromUser User? @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser   User? @relation("ToUser", fields: [toUserId], references: [id])
+}
+
+model Vote {
+  id           String   @id @default(cuid())
+  submissionId String
+  voterId      String
+  value        Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  voter      User       @relation(fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, voterId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
