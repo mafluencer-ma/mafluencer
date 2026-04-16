@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   });
 
   return ok({
-    missions: missions.map((m) => ({
+    missions: missions.map((m: any) => ({
       ...m,
       commission: m.budget * 0.15,
     })),
