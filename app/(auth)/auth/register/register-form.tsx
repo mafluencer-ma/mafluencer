@@ -75,7 +75,7 @@ export default function RegisterForm() {
     setLoadingEmail(true);
     try {
       document.cookie = `pending_role=${role};path=/;max-age=600`;
-      const res = await signIn("resend", { email, redirect: false });
+      const res = await signIn("resend", { email, callbackUrl: "/dashboard", redirect: false });
       if (res?.error) {
         toast.error("Erreur lors de l'envoi du lien.");
       } else {

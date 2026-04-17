@@ -39,7 +39,7 @@ export default function SigninForm() {
     if (!email) return;
     setLoadingEmail(true);
     try {
-      const res = await signIn("resend", { email, redirect: false });
+      const res = await signIn("resend", { email, callbackUrl: "/dashboard", redirect: false });
       if (res?.error) {
         toast.error("Erreur lors de l'envoi du lien. Vérifie ton adresse email.");
       } else {

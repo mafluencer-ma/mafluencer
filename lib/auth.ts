@@ -103,6 +103,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId:     process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Allows linking a Google account to an existing email/password account.
+      // Required when Google's OAuth app is in "Testing" / unverified state to
+      // avoid error=Verification blocking sign-in in production.
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           prompt:        "consent",

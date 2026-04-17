@@ -47,8 +47,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard/creator", req.url));
   }
 
-  // ── Already authenticated → skip auth pages ─────────────────────────────────
-  if ((pathname === "/auth/signin" || pathname === "/auth/register") && isAuthed) {
+  // ── Already authenticated → skip signin page only ───────────────────────────
+  // /auth/register is intentionally NOT redirected — an authenticated user may
+  // still need to visit it to complete role selection after a magic link login.
+  if (pathname === "/auth/signin" && isAuthed) {
     const dest =
       role === "ADMIN" ? "/dashboard/admin" :
       role === "BRAND" ? "/dashboard/brand" :
