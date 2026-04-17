@@ -1,14 +1,27 @@
-import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-// NextAuth v5: wrapping with auth() populates req.auth from the JWT cookie
-// without any DB call — safe for Edge and Node.js runtimes.
-export default auth(function middleware(req: NextRequest & { auth?: { user?: { role?: string } } | null }) {
+// NOTE: Do NOT import from @/lib/auth or @/lib/prisma here.
+// Middleware runs in the Edge runtime. lib/prisma.ts uses `pg` (node-postgres)
+// which is Node.js-only and crashes on Edge with empty {} error objects.
+// getToken() only reads the JWT cookie using the NEXTAUTH_SECRET — no DB call.
+
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const session      = req.auth;
-  const role         = session?.user?.role ?? null;
-  const isAuthed     = Boolean(session?.user);
+
+  let token: { id?: string; role?: string } | null = null;
+  try {
+    token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+  } catch (e) {
+    console.error("[middleware] getToken error:", e);
+  }
+
+  const isAuthed = Boolean(token);
+  const role     = token?.role ?? null;
 
   // ── /dashboard (bare) → redirect to role-specific sub-path ─────────────────
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
@@ -22,7 +35,7 @@ export default auth(function middleware(req: NextRequest & { auth?: { user?: { r
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
-  // ── All /dashboard/* routes → require authentication ────────────────────────
+  // ── All /dashboard/* → require auth ────────────────────────────────────────
   if (pathname.startsWith("/dashboard/") && !isAuthed) {
     const signInUrl = new URL("/auth/signin", req.url);
     signInUrl.searchParams.set("callbackUrl", pathname);
@@ -35,7 +48,7 @@ export default auth(function middleware(req: NextRequest & { auth?: { user?: { r
   }
 
   // ── Already authenticated → skip auth pages ─────────────────────────────────
-  if ((pathname.startsWith("/auth/signin") || pathname.startsWith("/auth/register")) && isAuthed) {
+  if ((pathname === "/auth/signin" || pathname === "/auth/register") && isAuthed) {
     const dest =
       role === "ADMIN" ? "/dashboard/admin" :
       role === "BRAND" ? "/dashboard/brand" :
@@ -44,11 +57,11 @@ export default auth(function middleware(req: NextRequest & { auth?: { user?: { r
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
-  // Run on all paths except Next.js internals, static files, and API auth routes
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|logo.png|fav.png|public).*)",
+    // Run on all paths except Next.js internals, static files, and auth API
+    "/((?!api/auth|_next/static|_next/image|favicon\\.ico|logo\\.png|fav\\.png).*)",
   ],
 };
