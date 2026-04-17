@@ -166,26 +166,58 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   pages: {
-    signIn:  "/auth/signin",
-    newUser: "/auth/register",
-    error:   "/auth/signin",
+    signIn: "/auth/signin",
+    error:  "/auth/signin",
   },
   session: {
     strategy: "jwt",
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (!user.email) return false;
+      try {
+        // Upsert user so it always exists in DB regardless of adapter behaviour
+        const existing = await prisma.user.findUnique({
+          where:  { email: user.email },
+          select: { id: true },
+        });
+        if (!existing) {
+          await prisma.user.create({
+            data: {
+              email: user.email,
+              name:  user.name  ?? null,
+              image: user.image ?? null,
+              role:  "CREATOR",
+            },
+          });
+        } else if (user.image) {
+          // Keep avatar fresh on subsequent logins
+          await prisma.user.update({
+            where: { email: user.email },
+            data:  { image: user.image, name: user.name ?? undefined },
+          });
+        }
+        return true;
+      } catch (e) {
+        console.error("[auth] signIn callback error:", e);
+        return false;
+      }
+    },
+
     async jwt({ token, user, account, trigger }) {
       // On first sign-in: persist id + role from DB
-      if (user?.id) {
-        token.id = user.id;
+      if (user?.email) {
         const dbUser = await prisma.user.findUnique({
-          where:  { id: user.id },
-          select: { role: true },
+          where:  { email: user.email },
+          select: { id: true, role: true },
         });
-        token.role = dbUser?.role ?? "CREATOR";
+        if (dbUser) {
+          token.id   = dbUser.id;
+          token.role = dbUser.role;
+        }
       }
 
-      // Re-fetch on session update
+      // Re-fetch on session update trigger
       if (trigger === "update" && token.id) {
         const dbUser = await prisma.user.findUnique({
           where:  { id: token.id as string },
@@ -196,16 +228,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       // After TikTok login — sync social profile data
       if (account?.provider === "tiktok" && user) {
-        await syncTikTokProfile(user.id!, user as Record<string, unknown>);
+        await syncTikTokProfile(token.id as string, user as Record<string, unknown>);
       }
 
       // After Instagram login — sync social profile data
       if (account?.provider === "instagram" && user) {
-        await syncInstagramProfile(user.id!, user as Record<string, unknown>);
+        await syncInstagramProfile(token.id as string, user as Record<string, unknown>);
       }
 
       return token;
     },
+
     async session({ session, token }) {
       if (session.user) {
         session.user.id   = token.id   as string;
@@ -213,14 +246,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session;
     },
+
     async redirect({ url, baseUrl }) {
+      // Allow relative URLs from callbackUrl params
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
         if (new URL(url).origin === baseUrl) return url;
       } catch {
-        // malformed URL
+        // malformed URL — fall through to default
       }
-      return `${baseUrl}/dashboard/creator`;
+      // Default: let middleware route to the right dashboard by role
+      return `${baseUrl}/dashboard`;
     },
   },
   secret:    process.env.NEXTAUTH_SECRET,

@@ -59,7 +59,7 @@ export default function SigninForm() {
   ) {
     setLoading(true);
     try {
-      await signIn(provider, { callbackUrl: "/dashboard/creator" });
+      await signIn(provider, { callbackUrl: "/dashboard" });
     } catch {
       toast.error(`Erreur lors de la connexion.`);
       setLoading(false);

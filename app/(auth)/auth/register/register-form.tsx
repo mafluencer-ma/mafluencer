@@ -67,7 +67,7 @@ export default function RegisterForm() {
   const [loadingInsta,  setLoadingInsta]  = useState(false);
   const [emailSent,     setEmailSent]     = useState(false);
 
-  const callbackUrl = `/dashboard/${role.toLowerCase()}`;
+  const callbackUrl = "/dashboard";
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
