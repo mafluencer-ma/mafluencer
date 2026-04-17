@@ -23,6 +23,8 @@ export async function middleware(req: NextRequest) {
   const isAuthed = Boolean(token);
   const role     = token?.role ?? null;
 
+  console.log("[MIDDLEWARE]", { pathname, role, isAuth: isAuthed });
+
   // ── /dashboard (bare) → redirect to role-specific sub-path ─────────────────
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
     if (!isAuthed) {

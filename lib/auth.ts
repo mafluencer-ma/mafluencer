@@ -172,7 +172,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account, profile }) {
       if (!user.email) return false;
-      console.log("[auth] signIn callback — provider:", account?.provider, "email:", user.email);
+      console.log("[AUTH signIn]", { userEmail: user?.email, provider: account?.provider });
 
       try {
         // PrismaAdapter creates the User row before this callback fires.
@@ -209,9 +209,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async jwt({ token, user, trigger }) {
+      console.log("[AUTH jwt]", { userEmail: user?.email, tokenId: token?.id, trigger });
       // On first sign-in `user` is populated — fetch role from DB and store in token
       if (user?.email) {
-        console.log("[auth] jwt callback — first sign-in for:", user.email);
         const dbUser = await prisma.user.findUnique({
           where:  { email: user.email },
           select: { id: true, role: true },
@@ -219,7 +219,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (dbUser) {
           token.id   = dbUser.id;
           token.role = dbUser.role;
-          console.log("[auth] jwt — role set to:", dbUser.role);
+          console.log("[AUTH jwt] role fetched from DB:", dbUser.role);
         }
       }
 
@@ -236,8 +236,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async session({ session, token }) {
-      // With JWT strategy the session callback receives `token`, not `user`
-      console.log("[auth] session callback — token.role:", token.role);
+      console.log("[AUTH session]", { sessionUser: session?.user, tokenId: token?.id });
       if (session.user) {
         session.user.id   = token.id   as string;
         session.user.role = token.role as string ?? "CREATOR";
@@ -246,6 +245,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async redirect({ url, baseUrl }) {
+      console.log("[AUTH redirect]", { url, baseUrl });
       // Relative paths: prepend baseUrl
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       // Same origin: allow as-is
