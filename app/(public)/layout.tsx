@@ -1,5 +1,6 @@
 import PublicNavbar from "@/components/layout/public-navbar";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,11 +13,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-[8px] bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">M</span>
+              <div className="mb-3">
+                <div className="relative h-9 w-28">
+                  <Image src="/logo.png" alt="Mafluencer" fill className="object-contain object-left" />
                 </div>
-                <span className="font-heading font-bold text-slate-100">Mafluencer</span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
                 La plateforme qui récompense les vrais créateurs de contenu au Maroc.

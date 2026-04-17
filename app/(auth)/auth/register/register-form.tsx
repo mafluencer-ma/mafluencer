@@ -12,6 +12,22 @@ import toast from "react-hot-toast";
 
 type Role = "CREATOR" | "BRAND";
 
+function TikTokIcon() {
+  return (
+    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.73a4.85 4.85 0 0 1-1.01-.04z"/>
+    </svg>
+  );
+}
+
+function InstagramIcon() {
+  return (
+    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+    </svg>
+  );
+}
+
 const roleOptions = [
   {
     value:    "CREATOR" as Role,
@@ -19,7 +35,6 @@ const roleOptions = [
     subtitle: "Influenceur / Créateur de contenu",
     icon:     Video,
     gradient: "from-indigo-500 to-pink-500",
-    accent:   "indigo",
     perks: [
       "Relève des défis hebdomadaires",
       "Construis ton Mafluencer Score",
@@ -33,7 +48,6 @@ const roleOptions = [
     subtitle: "Marque / Agence marketing",
     icon:     Briefcase,
     gradient: "from-amber-500 to-orange-500",
-    accent:   "amber",
     perks: [
       "Découvre les meilleurs creators",
       "Lance des défis sponsorisés",
@@ -49,7 +63,11 @@ export default function RegisterForm() {
   const [step,          setStep]          = useState<"role" | "auth">("role");
   const [loadingEmail,  setLoadingEmail]  = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const [loadingTikTok, setLoadingTikTok] = useState(false);
+  const [loadingInsta,  setLoadingInsta]  = useState(false);
   const [emailSent,     setEmailSent]     = useState(false);
+
+  const callbackUrl = `/dashboard/${role.toLowerCase()}`;
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -71,14 +89,17 @@ export default function RegisterForm() {
     }
   }
 
-  async function handleGoogleSignup() {
-    setLoadingGoogle(true);
+  async function handleOAuth(
+    provider: "google" | "tiktok" | "instagram",
+    setLoading: (v: boolean) => void
+  ) {
+    setLoading(true);
     document.cookie = `pending_role=${role};path=/;max-age=600`;
     try {
-      await signIn("google", { callbackUrl: `/dashboard/${role.toLowerCase()}` });
+      await signIn(provider, { callbackUrl });
     } catch {
-      toast.error("Erreur lors de la connexion Google.");
-      setLoadingGoogle(false);
+      toast.error("Erreur lors de la connexion.");
+      setLoading(false);
     }
   }
 
@@ -89,8 +110,8 @@ export default function RegisterForm() {
           {/* Header */}
           <div className="text-center">
             <div className="flex justify-center mb-5">
-              <div className="relative w-12 h-12">
-                <Image src="/logo.png" alt="Mafluencer" fill className="object-contain" />
+              <div className="relative h-10 w-36">
+                <Image src="/logo.png" alt="Mafluencer" fill className="object-contain" priority />
               </div>
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-4 uppercase tracking-wider">
@@ -129,9 +150,7 @@ export default function RegisterForm() {
                   <div className="flex items-start gap-4">
                     <div className={cn(
                       "w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-all",
-                      selected
-                        ? `bg-gradient-to-br ${option.gradient}`
-                        : "bg-slate-800"
+                      selected ? `bg-gradient-to-br ${option.gradient}` : "bg-slate-800"
                     )}>
                       <Icon size={20} className="text-white" />
                     </div>
@@ -146,7 +165,6 @@ export default function RegisterForm() {
                         )}
                       </div>
                       <p className="text-xs text-slate-500 mb-3">{option.subtitle}</p>
-
                       <ul className="space-y-1.5">
                         {option.perks.map((perk) => (
                           <li key={perk} className="flex items-center gap-2 text-xs text-slate-400">
@@ -178,7 +196,7 @@ export default function RegisterForm() {
         <div className="bg-[#1E293B]/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/40">
 
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-7">
             <button
               onClick={() => setStep("role")}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors mb-5"
@@ -191,10 +209,7 @@ export default function RegisterForm() {
                 "w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br",
                 role === "CREATOR" ? "from-indigo-500 to-pink-500" : "from-amber-500 to-orange-500"
               )}>
-                {role === "CREATOR"
-                  ? <Video size={20} className="text-white" />
-                  : <Briefcase size={20} className="text-white" />
-                }
+                {role === "CREATOR" ? <Video size={20} className="text-white" /> : <Briefcase size={20} className="text-white" />}
               </div>
             </div>
             <h2 className="text-2xl font-heading font-bold text-slate-100 tracking-tight">
@@ -211,7 +226,7 @@ export default function RegisterForm() {
               <div>
                 <p className="font-semibold text-slate-200">Vérifie ta boîte mail</p>
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Lien de connexion envoyé à{" "}
+                  Lien envoyé à{" "}
                   <span className="text-indigo-400 font-medium">{email}</span>
                 </p>
               </div>
@@ -228,8 +243,8 @@ export default function RegisterForm() {
               <Button
                 variant="secondary"
                 size="lg"
-                className="w-full mb-4"
-                onClick={handleGoogleSignup}
+                className="w-full mb-3"
+                onClick={() => handleOAuth("google", setLoadingGoogle)}
                 loading={loadingGoogle}
               >
                 <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
@@ -240,6 +255,34 @@ export default function RegisterForm() {
                 </svg>
                 S&apos;inscrire avec Google
               </Button>
+
+              {/* TikTok — creators only */}
+              {role === "CREATOR" && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="w-full mb-3 bg-black/60 border-white/[0.1] hover:bg-black/80"
+                  onClick={() => handleOAuth("tiktok", setLoadingTikTok)}
+                  loading={loadingTikTok}
+                >
+                  <TikTokIcon />
+                  S&apos;inscrire avec TikTok
+                </Button>
+              )}
+
+              {/* Instagram — creators only */}
+              {role === "CREATOR" && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="w-full mb-4 bg-gradient-to-r from-purple-900/40 to-pink-900/40 border-pink-500/20 hover:from-purple-900/60 hover:to-pink-900/60"
+                  onClick={() => handleOAuth("instagram", setLoadingInsta)}
+                  loading={loadingInsta}
+                >
+                  <InstagramIcon />
+                  S&apos;inscrire avec Instagram
+                </Button>
+              )}
 
               {/* Divider */}
               <div className="flex items-center gap-3 my-5">

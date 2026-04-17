@@ -17,19 +17,16 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="relative w-8 h-8 flex-shrink-0">
+        <Link href="/" className="flex items-center flex-shrink-0">
+          <div className="relative h-10 w-32">
             <Image
               src="/logo.png"
               alt="Mafluencer"
               fill
-              className="object-contain"
+              className="object-contain object-left"
               priority
             />
           </div>
-          <span className="font-heading font-bold text-lg text-slate-100 tracking-tight hidden sm:block">
-            Mafluencer
-          </span>
         </Link>
 
         {/* Nav links (desktop) */}
