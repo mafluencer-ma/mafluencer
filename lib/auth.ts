@@ -6,7 +6,6 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 
 // ── Custom TikTok provider ────────────────────────────────────────────────────
-// TikTok Login Kit v2
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
   return {
     id:   "tiktok",
@@ -45,27 +44,22 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
     profile(profile: Record<string, unknown>) {
       const data = (profile.data as Record<string, unknown>)?.user as Record<string, unknown> ?? profile;
       return {
-        id:    data.open_id as string,
-        name:  data.display_name as string,
-        image: data.avatar_url as string,
-        tiktokFollowers:   data.follower_count as number  ?? 0,
-        tiktokBio:         data.bio_description as string ?? "",
-        tiktokHandle:      data.display_name as string    ?? "",
+        id:              data.open_id         as string,
+        name:            data.display_name    as string,
+        image:           data.avatar_url      as string,
+        tiktokFollowers: data.follower_count  as number ?? 0,
+        tiktokBio:       data.bio_description as string ?? "",
+        tiktokHandle:    data.display_name    as string ?? "",
       };
     },
     clientId:     options.clientId,
     clientSecret: options.clientSecret,
     checks:       ["state"],
-    style: {
-      logo:  "https://www.tiktok.com/favicon.ico",
-      bg:    "#000000",
-      text:  "#ffffff",
-    },
+    style: { logo: "https://www.tiktok.com/favicon.ico", bg: "#000000", text: "#ffffff" },
   };
 }
 
 // ── Custom Instagram provider ─────────────────────────────────────────────────
-// Instagram Basic Display API (app-level)
 function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
   return {
     id:   "instagram",
@@ -82,23 +76,19 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
     },
     profile(profile: Record<string, unknown>) {
       return {
-        id:    profile.id as string,
-        name:  (profile.name as string) ?? (profile.username as string),
-        image: profile.profile_picture_url as string,
-        instagramFollowers: profile.followers_count as number  ?? 0,
-        instagramHandle:    profile.username       as string   ?? "",
-        instagramBio:       profile.biography      as string   ?? "",
-        mediaCount:         profile.media_count    as number   ?? 0,
+        id:                 profile.id                   as string,
+        name:               (profile.name as string)     ?? (profile.username as string),
+        image:              profile.profile_picture_url  as string,
+        instagramFollowers: profile.followers_count      as number ?? 0,
+        instagramHandle:    profile.username             as string ?? "",
+        instagramBio:       profile.biography            as string ?? "",
+        mediaCount:         profile.media_count          as number ?? 0,
       };
     },
     clientId:     options.clientId,
     clientSecret: options.clientSecret,
     checks:       ["state"],
-    style: {
-      logo:  "https://www.instagram.com/favicon.ico",
-      bg:    "#E1306C",
-      text:  "#ffffff",
-    },
+    style: { logo: "https://www.instagram.com/favicon.ico", bg: "#E1306C", text: "#ffffff" },
   };
 }
 
@@ -106,6 +96,7 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
+
   providers: [
     Google({
       clientId:     process.env.GOOGLE_CLIENT_ID!,
@@ -122,14 +113,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       apiKey: process.env.RESEND_API_KEY!,
       from:   "Mafluencer <noreply@mafluencer.ma>",
       sendVerificationRequest: async ({ identifier, url, provider }) => {
-        // Resend SDK call
         const { Resend: ResendSDK } = await import("resend");
         const resend = new ResendSDK(provider.apiKey);
-
         const { error } = await resend.emails.send({
           from:    provider.from!,
           to:      [identifier],
-          subject: "Connexion à Mafluencer",
+          subject: "Connexion a Mafluencer",
           html: `
             <div style="font-family:Inter,sans-serif;background:#0F172A;color:#E2E8F0;padding:40px;max-width:520px;margin:0 auto;border-radius:16px;">
               <div style="text-align:center;margin-bottom:32px;">
@@ -139,20 +128,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               </div>
               <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;">Ton lien de connexion</h2>
               <p style="color:#94A3B8;font-size:14px;margin-bottom:24px;">
-                Clique sur le bouton ci-dessous pour te connecter à ton compte Mafluencer. Ce lien expire dans 10 minutes.
+                Clique sur le bouton ci-dessous pour te connecter. Ce lien expire dans 10 minutes.
               </p>
               <div style="text-align:center;margin-bottom:32px;">
                 <a href="${url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366F1,#EC4899);color:#fff;text-decoration:none;border-radius:12px;font-weight:600;font-size:15px;">
-                  Connexion à Mafluencer
+                  Connexion a Mafluencer
                 </a>
               </div>
               <p style="color:#475569;font-size:12px;text-align:center;">
-                Si tu n'as pas demandé ce lien, ignore cet email.
+                Si tu n'as pas demande ce lien, ignore cet email.
               </p>
             </div>
           `,
         });
-
         if (error) throw new Error(error.message);
       },
     }),
@@ -165,23 +153,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.INSTAGRAM_CLIENT_SECRET!,
     }),
   ],
+
   pages: {
     signIn: "/auth/signin",
     error:  "/auth/signin",
   },
-  session: {
-    strategy: "jwt",
-  },
+
+  // No session.strategy — PrismaAdapter defaults to "database" strategy.
+  // Sessions are stored in the Session table; cookies hold a session token.
+
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (!user.email) return false;
+
       try {
-        // Upsert user so it always exists in DB regardless of adapter behaviour
-        const existing = await prisma.user.findUnique({
+        // Ensure the user row exists with a role (adapter creates it, but may
+        // not set a default role in all edge cases).
+        const dbUser = await prisma.user.findUnique({
           where:  { email: user.email },
-          select: { id: true },
+          select: { id: true, role: true },
         });
-        if (!existing) {
+
+        if (!dbUser) {
+          // Adapter should have already created the user before this callback,
+          // but as a safety net create it here if missing.
           await prisma.user.create({
             data: {
               email: user.email,
@@ -190,13 +185,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               role:  "CREATOR",
             },
           });
-        } else if (user.image) {
-          // Keep avatar fresh on subsequent logins
-          await prisma.user.update({
-            where: { email: user.email },
-            data:  { image: user.image, name: user.name ?? undefined },
-          });
         }
+
+        // Sync TikTok profile data after OAuth
+        if (account?.provider === "tiktok" && user.id) {
+          await syncTikTokProfile(user.id, profile as Record<string, unknown>);
+        }
+
+        // Sync Instagram profile data after OAuth
+        if (account?.provider === "instagram" && user.id) {
+          await syncInstagramProfile(user.id, profile as Record<string, unknown>);
+        }
+
         return true;
       } catch (e) {
         console.error("[auth] signIn callback error:", e);
@@ -204,94 +204,52 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
     },
 
-    async jwt({ token, user, account, trigger }) {
-      // On first sign-in: persist id + role from DB
-      if (user?.email) {
-        const dbUser = await prisma.user.findUnique({
-          where:  { email: user.email },
-          select: { id: true, role: true },
-        });
-        if (dbUser) {
-          token.id   = dbUser.id;
-          token.role = dbUser.role;
-        }
-      }
-
-      // Re-fetch on session update trigger
-      if (trigger === "update" && token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where:  { id: token.id as string },
-          select: { role: true },
-        });
-        if (dbUser) token.role = dbUser.role;
-      }
-
-      // After TikTok login — sync social profile data
-      if (account?.provider === "tiktok" && user) {
-        await syncTikTokProfile(token.id as string, user as Record<string, unknown>);
-      }
-
-      // After Instagram login — sync social profile data
-      if (account?.provider === "instagram" && user) {
-        await syncInstagramProfile(token.id as string, user as Record<string, unknown>);
-      }
-
-      return token;
-    },
-
-    async session({ session, token }) {
+    async session({ session, user }) {
+      // user is the AdapterUser from the database — includes all User model fields
       if (session.user) {
-        session.user.id   = token.id   as string;
-        session.user.role = token.role as string;
+        session.user.id   = user.id;
+        session.user.role = (user as unknown as { role: string }).role ?? "CREATOR";
       }
       return session;
     },
 
     async redirect({ url, baseUrl }) {
-      // Allow relative URLs from callbackUrl params
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
         if (new URL(url).origin === baseUrl) return url;
       } catch {
-        // malformed URL — fall through to default
+        // malformed URL
       }
-      // Default: let middleware route to the right dashboard by role
       return `${baseUrl}/dashboard`;
     },
   },
+
   secret:    process.env.NEXTAUTH_SECRET,
   trustHost: true,
 });
 
 // ── Social profile sync helpers ───────────────────────────────────────────────
 
-async function syncTikTokProfile(userId: string, userData: Record<string, unknown>) {
+async function syncTikTokProfile(userId: string, profile: Record<string, unknown>) {
   try {
-    const profile = await prisma.creatorProfile.findUnique({ where: { userId } });
-    const followers = userData.tiktokFollowers as number ?? 0;
-    const handle    = userData.tiktokHandle   as string ?? "";
-    const bio       = userData.tiktokBio      as string ?? "";
+    const data      = (profile?.data as Record<string, unknown>)?.user as Record<string, unknown> ?? profile ?? {};
+    const followers = (data.follower_count  ?? data.tiktokFollowers) as number ?? 0;
+    const handle    = (data.display_name    ?? data.tiktokHandle)    as string ?? "";
+    const bio       = (data.bio_description ?? data.tiktokBio)       as string ?? "";
 
-    if (profile) {
+    const existing = await prisma.creatorProfile.findUnique({ where: { userId } });
+    if (existing) {
       await prisma.creatorProfile.update({
         where: { userId },
         data: {
-          followersCount: followers,
-          tiktokHandle:   handle || profile.tiktokHandle,
-          bio:            bio    || profile.bio,
+          followersCount: followers || existing.followersCount,
+          tiktokHandle:   handle   || existing.tiktokHandle,
+          bio:            bio      || existing.bio,
         },
       });
     } else {
       await prisma.creatorProfile.create({
-        data: {
-          userId,
-          followersCount: followers,
-          tiktokHandle:   handle,
-          bio,
-          niches:         [],
-          score:          0,
-          level:          "Rookie",
-        },
+        data: { userId, followersCount: followers, tiktokHandle: handle, bio, niches: [], score: 0, level: "Rookie" },
       });
     }
   } catch {
@@ -299,33 +257,25 @@ async function syncTikTokProfile(userId: string, userData: Record<string, unknow
   }
 }
 
-async function syncInstagramProfile(userId: string, userData: Record<string, unknown>) {
+async function syncInstagramProfile(userId: string, profile: Record<string, unknown>) {
   try {
-    const profile     = await prisma.creatorProfile.findUnique({ where: { userId } });
-    const followers   = userData.instagramFollowers as number ?? 0;
-    const handle      = userData.instagramHandle   as string ?? "";
-    const bio         = userData.instagramBio      as string ?? "";
+    const followers = (profile.followers_count ?? profile.instagramFollowers) as number ?? 0;
+    const handle    = (profile.username        ?? profile.instagramHandle)    as string ?? "";
+    const bio       = (profile.biography       ?? profile.instagramBio)       as string ?? "";
 
-    if (profile) {
+    const existing = await prisma.creatorProfile.findUnique({ where: { userId } });
+    if (existing) {
       await prisma.creatorProfile.update({
         where: { userId },
         data: {
-          followersCount:  followers,
-          instagramHandle: handle || profile.instagramHandle,
-          bio:             bio    || profile.bio,
+          followersCount:  followers || existing.followersCount,
+          instagramHandle: handle   || existing.instagramHandle,
+          bio:             bio      || existing.bio,
         },
       });
     } else {
       await prisma.creatorProfile.create({
-        data: {
-          userId,
-          followersCount:  followers,
-          instagramHandle: handle,
-          bio,
-          niches:          [],
-          score:           0,
-          level:           "Rookie",
-        },
+        data: { userId, followersCount: followers, instagramHandle: handle, bio, niches: [], score: 0, level: "Rookie" },
       });
     }
   } catch {
