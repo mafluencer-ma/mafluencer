@@ -20,15 +20,15 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
       },
     },
     token: {
-      url:  "https://open.tiktokapis.com/v2/oauth/token/",
-      async request({ params, provider }) {
+      url: "https://open.tiktokapis.com/v2/oauth/token/",
+      async request({ params, provider }: { params: Record<string, unknown>; provider: { clientId?: string; clientSecret?: string; callbackUrl?: string } }) {
         const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method:  "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             client_key:    provider.clientId!,
             client_secret: provider.clientSecret!,
-            code:          params.code!,
+            code:          params.code as string,
             grant_type:    "authorization_code",
             redirect_uri:  provider.callbackUrl!,
           }),
@@ -76,13 +76,13 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
     },
     profile(profile: Record<string, unknown>) {
       return {
-        id:                 profile.id                   as string,
-        name:               (profile.name as string)     ?? (profile.username as string),
-        image:              profile.profile_picture_url  as string,
-        instagramFollowers: profile.followers_count      as number ?? 0,
-        instagramHandle:    profile.username             as string ?? "",
-        instagramBio:       profile.biography            as string ?? "",
-        mediaCount:         profile.media_count          as number ?? 0,
+        id:                 profile.id                  as string,
+        name:               (profile.name as string)    ?? (profile.username as string),
+        image:              profile.profile_picture_url as string,
+        instagramFollowers: profile.followers_count     as number ?? 0,
+        instagramHandle:    profile.username            as string ?? "",
+        instagramBio:       profile.biography           as string ?? "",
+        mediaCount:         profile.media_count         as number ?? 0,
       };
     },
     clientId:     options.clientId,
@@ -95,6 +95,8 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
 // ── Main NextAuth config ──────────────────────────────────────────────────────
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // PrismaAdapter creates User + Account rows in DB on first OAuth login.
+  // With JWT strategy the Session table is NOT used — sessions live in cookies.
   adapter: PrismaAdapter(prisma),
 
   providers: [
@@ -159,24 +161,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error:  "/auth/signin",
   },
 
-  // No session.strategy — PrismaAdapter defaults to "database" strategy.
-  // Sessions are stored in the Session table; cookies hold a session token.
+  // JWT strategy: role is encoded in the cookie token — no DB call needed in
+  // middleware. PrismaAdapter still writes User + Account rows on first login.
+  session: { strategy: "jwt" },
 
   callbacks: {
     async signIn({ user, account, profile }) {
       if (!user.email) return false;
+      console.log("[auth] signIn callback — provider:", account?.provider, "email:", user.email);
 
       try {
-        // Ensure the user row exists with a role (adapter creates it, but may
-        // not set a default role in all edge cases).
-        const dbUser = await prisma.user.findUnique({
+        // PrismaAdapter creates the User row before this callback fires.
+        // This is a safety net: if the adapter row is missing, create it.
+        const existing = await prisma.user.findUnique({
           where:  { email: user.email },
-          select: { id: true, role: true },
+          select: { id: true },
         });
-
-        if (!dbUser) {
-          // Adapter should have already created the user before this callback,
-          // but as a safety net create it here if missing.
+        if (!existing) {
+          console.log("[auth] User not found in DB — creating manually");
           await prisma.user.create({
             data: {
               email: user.email,
@@ -187,12 +189,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
         }
 
-        // Sync TikTok profile data after OAuth
+        // Sync TikTok/Instagram profile data
         if (account?.provider === "tiktok" && user.id) {
           await syncTikTokProfile(user.id, profile as Record<string, unknown>);
         }
-
-        // Sync Instagram profile data after OAuth
         if (account?.provider === "instagram" && user.id) {
           await syncInstagramProfile(user.id, profile as Record<string, unknown>);
         }
@@ -204,22 +204,53 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
     },
 
-    async session({ session, user }) {
-      // user is the AdapterUser from the database — includes all User model fields
+    async jwt({ token, user, trigger }) {
+      // On first sign-in `user` is populated — fetch role from DB and store in token
+      if (user?.email) {
+        console.log("[auth] jwt callback — first sign-in for:", user.email);
+        const dbUser = await prisma.user.findUnique({
+          where:  { email: user.email },
+          select: { id: true, role: true },
+        });
+        if (dbUser) {
+          token.id   = dbUser.id;
+          token.role = dbUser.role;
+          console.log("[auth] jwt — role set to:", dbUser.role);
+        }
+      }
+
+      // Re-fetch role when session.update() is called client-side
+      if (trigger === "update" && token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where:  { id: token.id as string },
+          select: { role: true },
+        });
+        if (dbUser) token.role = dbUser.role;
+      }
+
+      return token;
+    },
+
+    async session({ session, token }) {
+      // With JWT strategy the session callback receives `token`, not `user`
+      console.log("[auth] session callback — token.role:", token.role);
       if (session.user) {
-        session.user.id   = user.id;
-        session.user.role = (user as unknown as { role: string }).role ?? "CREATOR";
+        session.user.id   = token.id   as string;
+        session.user.role = token.role as string ?? "CREATOR";
       }
       return session;
     },
 
     async redirect({ url, baseUrl }) {
+      // Relative paths: prepend baseUrl
       if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Same origin: allow as-is
       try {
         if (new URL(url).origin === baseUrl) return url;
       } catch {
-        // malformed URL
+        // malformed url
       }
+      // Default: middleware will handle role routing from /dashboard
       return `${baseUrl}/dashboard`;
     },
   },
@@ -253,7 +284,7 @@ async function syncTikTokProfile(userId: string, profile: Record<string, unknown
       });
     }
   } catch {
-    // Non-fatal — don't block auth
+    // Non-fatal
   }
 }
 
@@ -279,6 +310,6 @@ async function syncInstagramProfile(userId: string, profile: Record<string, unkn
       });
     }
   } catch {
-    // Non-fatal — don't block auth
+    // Non-fatal
   }
 }
