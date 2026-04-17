@@ -71,11 +71,19 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
       <div className="bg-[#1E293B]/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/40">
 
         {/* Error banner */}
-        {errorParam === "EmailExists" && (
+        {(errorParam === "EmailExists" || errorParam === "OAuthAccountNotLinked") && (
           <div className="flex items-start gap-3 mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
             <AlertCircle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-amber-300 leading-relaxed">
-              Un compte existe déjà avec cet email. Connecte-toi avec le lien magique ou utilise une autre adresse Google.
+              Un compte existe déjà avec cet email. Utilise le lien magique ou une autre adresse.
+            </p>
+          </div>
+        )}
+        {errorParam === "Verification" && (
+          <div className="flex items-start gap-3 mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+            <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-300 leading-relaxed">
+              Erreur de vérification. Réessaie.
             </p>
           </div>
         )}

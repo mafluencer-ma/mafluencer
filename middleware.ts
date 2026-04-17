@@ -1,71 +1,57 @@
-import { NextResponse } from "next/server";
+// middleware.ts — runs in Edge runtime
+// Uses NextAuth(authConfig).auth which reads the v5 JWT cookie correctly.
+// Does NOT import lib/auth.ts or lib/prisma.ts (both use pg which is Node-only).
+
+import NextAuth from "next-auth";
+import { authConfig } from "./auth.config";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
-// NOTE: Do NOT import from @/lib/auth or @/lib/prisma here.
-// Middleware runs in the Edge runtime. lib/prisma.ts uses `pg` (node-postgres)
-// which is Node.js-only and crashes on Edge with empty {} error objects.
-// getToken() only reads the JWT cookie using the NEXTAUTH_SECRET — no DB call.
+const { auth } = NextAuth(authConfig);
 
-export async function middleware(req: NextRequest) {
+export default auth(function middleware(
+  req: NextRequest & { auth?: { user?: { id?: string; role?: string } } | null }
+) {
   const { pathname } = req.nextUrl;
-
-  let token: { id?: string; role?: string } | null = null;
-  try {
-    token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-  } catch (e) {
-    console.error("[middleware] getToken error:", e);
-  }
-
-  const isAuthed = Boolean(token);
-  const role     = token?.role ?? null;
+  const session      = req.auth;
+  const isAuthed     = Boolean(session?.user);
+  const role         = session?.user?.role ?? null;
 
   console.log("[MIDDLEWARE]", { pathname, role, isAuth: isAuthed });
 
-  // ── /dashboard (bare) → redirect to role-specific sub-path ─────────────────
+  // ── /dashboard (bare) → route by role ──────────────────────────────────────
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
     if (!isAuthed) {
-      return NextResponse.redirect(new URL("/auth/signin?callbackUrl=%2Fdashboard", req.url));
+      return Response.redirect(new URL("/auth/signin?callbackUrl=%2Fdashboard", req.url));
     }
     const dest =
       role === "ADMIN" ? "/dashboard/admin" :
       role === "BRAND" ? "/dashboard/brand" :
       "/dashboard/creator";
-    return NextResponse.redirect(new URL(dest, req.url));
+    return Response.redirect(new URL(dest, req.url));
   }
 
-  // ── All /dashboard/* → require auth ────────────────────────────────────────
+  // ── /dashboard/* → require auth ────────────────────────────────────────────
   if (pathname.startsWith("/dashboard/") && !isAuthed) {
     const signInUrl = new URL("/auth/signin", req.url);
     signInUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(signInUrl);
+    return Response.redirect(signInUrl);
   }
 
   // ── /dashboard/admin/* → require ADMIN role ─────────────────────────────────
   if (pathname.startsWith("/dashboard/admin") && role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/dashboard/creator", req.url));
+    return Response.redirect(new URL("/dashboard/creator", req.url));
   }
 
-  // ── Already authenticated → skip signin page only ───────────────────────────
-  // /auth/register is intentionally NOT redirected — an authenticated user may
-  // still need to visit it to complete role selection after a magic link login.
+  // ── /auth/signin → skip if already authenticated ────────────────────────────
   if (pathname === "/auth/signin" && isAuthed) {
     const dest =
       role === "ADMIN" ? "/dashboard/admin" :
       role === "BRAND" ? "/dashboard/brand" :
       "/dashboard/creator";
-    return NextResponse.redirect(new URL(dest, req.url));
+    return Response.redirect(new URL(dest, req.url));
   }
-
-  return NextResponse.next();
-}
+});
 
 export const config = {
-  matcher: [
-    // Run on all paths except Next.js internals, static files, and auth API
-    "/((?!api/auth|_next/static|_next/image|favicon\\.ico|logo\\.png|fav\\.png).*)",
-  ],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon\\.ico|logo\\.png|fav\\.png).*)" ],
 };

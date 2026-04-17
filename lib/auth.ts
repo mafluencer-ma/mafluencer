@@ -1,9 +1,13 @@
+// lib/auth.ts — Node.js runtime only (uses pg/prisma)
+// Extends auth.config.ts with PrismaAdapter + full providers + DB callbacks.
+
 import NextAuth from "next-auth";
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers";
 import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+import { authConfig } from "@/auth.config";
 
 // ── Custom TikTok provider ────────────────────────────────────────────────────
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
@@ -95,17 +99,17 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
 // ── Main NextAuth config ──────────────────────────────────────────────────────
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  // PrismaAdapter creates User + Account rows in DB on first OAuth login.
-  // With JWT strategy the Session table is NOT used — sessions live in cookies.
+  ...authConfig,
+
+  // PrismaAdapter creates User + Account rows on first OAuth login.
   adapter: PrismaAdapter(prisma),
 
   providers: [
     Google({
       clientId:     process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // Allows linking a Google account to an existing email/password account.
-      // Required when Google's OAuth app is in "Testing" / unverified state to
-      // avoid error=Verification blocking sign-in in production.
+      // Allows linking a Google account to an existing email/magic-link account.
+      // Prevents OAuthAccountNotLinked when same email used across providers.
       allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
@@ -160,28 +164,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
 
-  pages: {
-    signIn: "/auth/signin",
-    error:  "/auth/signin",
-  },
-
-  // JWT strategy: role is encoded in the cookie token — no DB call needed in
-  // middleware. PrismaAdapter still writes User + Account rows on first login.
-  session: { strategy: "jwt" },
-
   callbacks: {
     async signIn({ user, account, profile }) {
       if (!user.email) return false;
       console.log("[AUTH signIn]", { userEmail: user?.email, provider: account?.provider });
 
       try {
-        // Ensure the user row exists in DB (PrismaAdapter creates it, but as safety net)
+        // Safety net: ensure user row exists (PrismaAdapter creates it, but guard anyway)
         const existing = await prisma.user.findUnique({
           where:  { email: user.email },
           select: { id: true },
         });
         if (!existing) {
-          console.log("[AUTH signIn] User not found in DB — creating manually");
+          console.log("[AUTH signIn] User missing — creating manually");
           await prisma.user.create({
             data: {
               email: user.email,
@@ -192,7 +187,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
         }
 
-        // Sync TikTok/Instagram profile data
         if (account?.provider === "tiktok" && user.id) {
           await syncTikTokProfile(user.id, profile as Record<string, unknown>);
         }
@@ -202,21 +196,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         return true;
       } catch (e: unknown) {
-        // OAuthAccountNotLinked: email already exists under a different provider.
-        // allowDangerousEmailAccountLinking should prevent this, but as a fallback
-        // redirect to signin with a friendly error message instead of the error page.
-        if (e instanceof Error && e.message?.includes("OAuthAccountNotLinked")) {
-          console.log("[AUTH signIn] OAuthAccountNotLinked — redirecting to friendly error");
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[AUTH signIn] error:", msg);
+        // OAuthAccountNotLinked fallback (allowDangerousEmailAccountLinking should prevent this)
+        if (msg.includes("OAuthAccountNotLinked")) {
           return "/auth/signin?error=EmailExists";
         }
-        console.error("[AUTH signIn] error:", e);
         return false;
       }
     },
 
     async jwt({ token, user, trigger }) {
       console.log("[AUTH jwt]", { userEmail: user?.email, tokenId: token?.id, trigger });
-      // On first sign-in `user` is populated — fetch role from DB and store in token
+
+      // First sign-in: user object is populated — fetch role from DB and encode in token
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
           where:  { email: user.email },
@@ -229,7 +222,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
-      // Re-fetch role when session.update() is called client-side
+      // Explicit session.update() call — re-fetch role
       if (trigger === "update" && token.id) {
         const dbUser = await prisma.user.findUnique({
           where:  { id: token.id as string },
@@ -242,25 +235,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async session({ session, token }) {
-      console.log("[AUTH session]", { sessionUser: session?.user, tokenId: token?.id });
+      console.log("[AUTH session]", { tokenId: token?.id, tokenRole: token?.role });
       if (session.user) {
         session.user.id   = token.id   as string;
-        session.user.role = token.role as string ?? "CREATOR";
+        session.user.role = (token.role as string) ?? "CREATOR";
       }
       return session;
     },
 
     async redirect({ url, baseUrl }) {
       console.log("[AUTH redirect]", { url, baseUrl });
-      // Relative paths: prepend baseUrl
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Same origin: allow as-is
       try {
         if (new URL(url).origin === baseUrl) return url;
-      } catch {
-        // malformed url
-      }
-      // Default: middleware will handle role routing from /dashboard
+      } catch { /* malformed */ }
       return `${baseUrl}/dashboard`;
     },
   },
@@ -277,25 +265,17 @@ async function syncTikTokProfile(userId: string, profile: Record<string, unknown
     const followers = (data.follower_count  ?? data.tiktokFollowers) as number ?? 0;
     const handle    = (data.display_name    ?? data.tiktokHandle)    as string ?? "";
     const bio       = (data.bio_description ?? data.tiktokBio)       as string ?? "";
-
-    const existing = await prisma.creatorProfile.findUnique({ where: { userId } });
+    const existing  = await prisma.creatorProfile.findUnique({ where: { userId } });
     if (existing) {
-      await prisma.creatorProfile.update({
-        where: { userId },
-        data: {
-          followersCount: followers || existing.followersCount,
-          tiktokHandle:   handle   || existing.tiktokHandle,
-          bio:            bio      || existing.bio,
-        },
-      });
+      await prisma.creatorProfile.update({ where: { userId }, data: {
+        followersCount: followers || existing.followersCount,
+        tiktokHandle:   handle   || existing.tiktokHandle,
+        bio:            bio      || existing.bio,
+      }});
     } else {
-      await prisma.creatorProfile.create({
-        data: { userId, followersCount: followers, tiktokHandle: handle, bio, niches: [], score: 0, level: "Rookie" },
-      });
+      await prisma.creatorProfile.create({ data: { userId, followersCount: followers, tiktokHandle: handle, bio, niches: [], score: 0, level: "Rookie" } });
     }
-  } catch {
-    // Non-fatal
-  }
+  } catch { /* non-fatal */ }
 }
 
 async function syncInstagramProfile(userId: string, profile: Record<string, unknown>) {
@@ -303,23 +283,15 @@ async function syncInstagramProfile(userId: string, profile: Record<string, unkn
     const followers = (profile.followers_count ?? profile.instagramFollowers) as number ?? 0;
     const handle    = (profile.username        ?? profile.instagramHandle)    as string ?? "";
     const bio       = (profile.biography       ?? profile.instagramBio)       as string ?? "";
-
-    const existing = await prisma.creatorProfile.findUnique({ where: { userId } });
+    const existing  = await prisma.creatorProfile.findUnique({ where: { userId } });
     if (existing) {
-      await prisma.creatorProfile.update({
-        where: { userId },
-        data: {
-          followersCount:  followers || existing.followersCount,
-          instagramHandle: handle   || existing.instagramHandle,
-          bio:             bio      || existing.bio,
-        },
-      });
+      await prisma.creatorProfile.update({ where: { userId }, data: {
+        followersCount:  followers || existing.followersCount,
+        instagramHandle: handle   || existing.instagramHandle,
+        bio:             bio      || existing.bio,
+      }});
     } else {
-      await prisma.creatorProfile.create({
-        data: { userId, followersCount: followers, instagramHandle: handle, bio, niches: [], score: 0, level: "Rookie" },
-      });
+      await prisma.creatorProfile.create({ data: { userId, followersCount: followers, instagramHandle: handle, bio, niches: [], score: 0, level: "Rookie" } });
     }
-  } catch {
-    // Non-fatal
-  }
+  } catch { /* non-fatal */ }
 }
