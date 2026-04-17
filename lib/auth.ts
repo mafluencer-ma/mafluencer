@@ -175,14 +175,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       console.log("[AUTH signIn]", { userEmail: user?.email, provider: account?.provider });
 
       try {
-        // PrismaAdapter creates the User row before this callback fires.
-        // This is a safety net: if the adapter row is missing, create it.
+        // Ensure the user row exists in DB (PrismaAdapter creates it, but as safety net)
         const existing = await prisma.user.findUnique({
           where:  { email: user.email },
           select: { id: true },
         });
         if (!existing) {
-          console.log("[auth] User not found in DB — creating manually");
+          console.log("[AUTH signIn] User not found in DB — creating manually");
           await prisma.user.create({
             data: {
               email: user.email,
@@ -202,8 +201,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         return true;
-      } catch (e) {
-        console.error("[auth] signIn callback error:", e);
+      } catch (e: unknown) {
+        // OAuthAccountNotLinked: email already exists under a different provider.
+        // allowDangerousEmailAccountLinking should prevent this, but as a fallback
+        // redirect to signin with a friendly error message instead of the error page.
+        if (e instanceof Error && e.message?.includes("OAuthAccountNotLinked")) {
+          console.log("[AUTH signIn] OAuthAccountNotLinked — redirecting to friendly error");
+          return "/auth/signin?error=EmailExists";
+        }
+        console.error("[AUTH signIn] error:", e);
         return false;
       }
     },
@@ -216,10 +222,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where:  { email: user.email },
           select: { id: true, role: true },
         });
+        console.log("[AUTH jwt] role fetched:", dbUser?.role ?? "NOT FOUND");
         if (dbUser) {
           token.id   = dbUser.id;
           token.role = dbUser.role;
-          console.log("[AUTH jwt] role fetched from DB:", dbUser.role);
         }
       }
 

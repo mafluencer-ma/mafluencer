@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, ArrowRight, CheckCircle } from "lucide-react";
+import { Mail, ArrowRight, CheckCircle, AlertCircle } from "lucide-react";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import toast from "react-hot-toast";
@@ -26,7 +26,7 @@ function InstagramIcon() {
   );
 }
 
-export default function SigninForm() {
+export default function SigninForm({ errorParam }: { errorParam?: string }) {
   const [email,         setEmail]         = useState("");
   const [loadingEmail,  setLoadingEmail]  = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
@@ -69,6 +69,16 @@ export default function SigninForm() {
   return (
     <div className="w-full max-w-md">
       <div className="bg-[#1E293B]/60 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-2xl shadow-black/40">
+
+        {/* Error banner */}
+        {errorParam === "EmailExists" && (
+          <div className="flex items-start gap-3 mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <AlertCircle size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-300 leading-relaxed">
+              Un compte existe déjà avec cet email. Connecte-toi avec le lien magique ou utilise une autre adresse Google.
+            </p>
+          </div>
+        )}
 
         {/* Header */}
         <div className="text-center mb-8">

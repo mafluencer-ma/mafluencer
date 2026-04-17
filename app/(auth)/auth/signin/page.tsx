@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "Connecte-toi à ton compte Mafluencer",
 };
 
-export default function SigninPage() {
-  return <SigninForm />;
+export default async function SigninPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  return <SigninForm errorParam={error} />;
 }
