@@ -3,8 +3,11 @@
 // lib/auth.ts extends this with PrismaAdapter + full providers for Node.js routes.
 
 import type { NextAuthConfig } from "next-auth";
+import Google from "next-auth/providers/google";
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
+
   pages: {
     signIn: "/auth/signin",
     error:  "/auth/signin",
@@ -12,11 +15,20 @@ export const authConfig: NextAuthConfig = {
 
   session: { strategy: "jwt" },
 
+  // Google provider included here so allowDangerousEmailAccountLinking is
+  // applied at the Edge level too (prevents OAuthAccountNotLinked errors).
+  providers: [
+    Google({
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
+    }),
+  ],
+
   callbacks: {
-    // In middleware context this callback receives the already-built token.
-    // id and role were set by lib/auth.ts jwt callback (Node.js) on first sign-in.
-    // We just pass the token through — no DB call needed here.
     jwt({ token }) {
+      // Token already contains id + role set by lib/auth.ts on first sign-in.
+      // Just pass it through — no DB call here.
       return token;
     },
 
@@ -27,8 +39,13 @@ export const authConfig: NextAuthConfig = {
       }
       return session;
     },
-  },
 
-  // No providers here — providers with Node.js deps live in lib/auth.ts
-  providers: [],
+    redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        if (new URL(url).origin === baseUrl) return url;
+      } catch { /* malformed url */ }
+      return `${baseUrl}/dashboard`;
+    },
+  },
 };
