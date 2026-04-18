@@ -1,53 +1,46 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Users, Briefcase, Building2, DollarSign, Flame,
-  TrendingUp, ShieldCheck, AlertCircle, ArrowRight,
+  Users, Briefcase, Building2, Flame,
+  TrendingUp, ShieldCheck, AlertCircle, ArrowRight, RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import Badge from "@/components/ui/badge";
 import PageHeader from "@/components/dashboard/page-header";
-import { formatMAD } from "@/lib/utils";
 
-// ── Mock data ────────────────────────────────────────────────────────────────
-const MONTHLY_REVENUE = [
-  { month: "Nov", revenue: 8200,  users: 142 },
-  { month: "Déc", revenue: 11400, users: 198 },
-  { month: "Jan", revenue: 9800,  users: 175 },
-  { month: "Fév", revenue: 14200, users: 234 },
-  { month: "Mar", revenue: 18600, users: 312 },
-  { month: "Avr", revenue: 24300, users: 401 },
-];
+type Stats = {
+  totalUsers:        number;
+  creators:          number;
+  brands:            number;
+  admins:            number;
+  totalChallenges:   number;
+  activeChallenges:  number;
+  totalMissions:     number;
+  totalSubmissions:  number;
+  pendingSubmissions:number;
+  recentSignups: Array<{
+    id:           string;
+    name:         string | null;
+    email:        string;
+    role:         string;
+    image:        string | null;
+    banned:       boolean;
+    createdAt:    string;
+  }>;
+};
 
-const CHALLENGE_SUBMISSIONS = [
-  { week: "S1", submissions: 34, approved: 28 },
-  { week: "S2", submissions: 56, approved: 44 },
-  { week: "S3", submissions: 48, approved: 39 },
-  { week: "S4", submissions: 72, approved: 61 },
-  { week: "S5", submissions: 65, approved: 54 },
-  { week: "S6", submissions: 89, approved: 74 },
-];
+const ROLE_META: Record<string, { label: string; variant: "primary" | "warning" | "success" | "default" }> = {
+  CREATOR: { label: "Creator", variant: "primary"  },
+  BRAND:   { label: "Brand",   variant: "warning"  },
+  ADMIN:   { label: "Admin",   variant: "success"  },
+};
 
-const ROLE_DISTRIBUTION = [
-  { name: "Creators", value: 847, color: "#6366F1" },
-  { name: "Brands",   value: 124, color: "#EC4899" },
-  { name: "Admins",   value: 3,   color: "#10B981" },
-];
-
-const RECENT_ACTIVITY = [
-  { id: 1, type: "user",      label: "Nouveau creator inscrit",       sub: "fatima_zahra · Marrakech",   time: "Il y a 5 min",  variant: "success" as const },
-  { id: 2, type: "mission",   label: "Mission livrée",                sub: "@sarabeauty ← Inwi",          time: "Il y a 12 min", variant: "primary" as const },
-  { id: 3, type: "withdraw",  label: "Demande de retrait",            sub: "1 200 MAD · @yassine_create", time: "Il y a 28 min", variant: "warning" as const },
-  { id: 4, type: "challenge", label: "Défi #HumourRamadan terminé",   sub: "89 soumissions · 3 gagnants", time: "Il y a 1h",     variant: "default" as const },
-  { id: 5, type: "brand",     label: "Nouvelle marque inscrite",      sub: "Marjane Market",              time: "Il y a 2h",     variant: "success" as const },
-  { id: 6, type: "report",    label: "Signalement contenu",           sub: "Soumission #s142",            time: "Il y a 3h",     variant: "error" as const },
-];
-
-const customTooltipStyle = {
+const tooltipStyle = {
   backgroundColor: "#1E293B",
   border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: "10px",
@@ -55,155 +48,222 @@ const customTooltipStyle = {
   fontSize: "12px",
 };
 
+// Placeholder sparkline data (replace with real time-series if/when available)
+const WEEKLY = [
+  { day: "L", users: 0 }, { day: "M", users: 0 }, { day: "M", users: 0 },
+  { day: "J", users: 0 }, { day: "V", users: 0 }, { day: "S", users: 0 }, { day: "D", users: 0 },
+];
+
 export default function AdminOverviewContent() {
+  const [stats,   setStats]   = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res  = await fetch("/api/admin/stats");
+      if (!res.ok) throw new Error("Erreur serveur");
+      const data = await res.json() as Stats;
+      setStats(data);
+    } catch (e) {
+      setError("Impossible de charger les statistiques.");
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
   return (
     <div className="max-w-6xl space-y-6">
       <PageHeader
         title="Vue d'ensemble"
         subtitle="Statistiques globales de la plateforme Mafluencer"
         icon={ShieldCheck}
+        action={
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            Actualiser
+          </button>
+        }
       />
+
+      {error && (
+        <div className="flex items-center gap-3 p-4 rounded-[14px] bg-red-500/10 border border-red-500/20">
+          <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-300">{error}</p>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total users",      value: "974",    icon: Users,       color: "text-indigo-400", bg: "bg-indigo-500/10",  trend: "+12%"  },
-          { label: "Creators",         value: "847",    icon: TrendingUp,  color: "text-pink-400",   bg: "bg-pink-500/10",    trend: "+8%"   },
-          { label: "Brands",           value: "124",    icon: Building2,   color: "text-cyan-400",   bg: "bg-cyan-500/10",    trend: "+23%"  },
-          { label: "Revenue (MAD)",    value: "24 300", icon: DollarSign,  color: "text-emerald-400",bg: "bg-emerald-500/10", trend: "+30%"  },
-          { label: "Défis actifs",     value: "6",      icon: Flame,       color: "text-orange-400", bg: "bg-orange-500/10",  trend: "actif" },
-        ].map(({ label, value, icon: Icon, color, bg, trend }) => (
-          <div key={label} className="glass rounded-[18px] p-5 relative overflow-hidden hover:scale-[1.02] transition-transform">
+          { label: "Total users",       value: stats?.totalUsers        ?? "—", icon: Users,      color: "text-indigo-400",  bg: "bg-indigo-500/10"  },
+          { label: "Creators",          value: stats?.creators          ?? "—", icon: TrendingUp,  color: "text-pink-400",    bg: "bg-pink-500/10"    },
+          { label: "Brands",            value: stats?.brands            ?? "—", icon: Building2,   color: "text-cyan-400",    bg: "bg-cyan-500/10"    },
+          { label: "Défis actifs",      value: stats?.activeChallenges  ?? "—", icon: Flame,       color: "text-orange-400",  bg: "bg-orange-500/10"  },
+          { label: "Soumissions",       value: stats?.totalSubmissions  ?? "—", icon: Briefcase,   color: "text-emerald-400", bg: "bg-emerald-500/10" },
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className={`glass rounded-[18px] p-5 relative overflow-hidden hover:scale-[1.02] transition-transform ${loading ? "animate-pulse" : ""}`}>
             <div className={`absolute top-3 right-3 w-8 h-8 rounded-[8px] ${bg} flex items-center justify-center`}>
               <Icon size={15} className={color} />
             </div>
             <p className="text-2xl font-heading font-bold text-slate-100 mt-1">{value}</p>
             <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-            <p className={`text-[11px] mt-1.5 font-medium ${trend.startsWith("+") ? "text-emerald-400" : "text-slate-500"}`}>{trend}</p>
           </div>
         ))}
       </div>
 
-      {/* Revenue area chart + pie chart */}
+      {/* Second row KPIs */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Total défis",        value: stats.totalChallenges,   color: "text-slate-200" },
+            { label: "Total missions",      value: stats.totalMissions,     color: "text-slate-200" },
+            { label: "Soumissions en attente", value: stats.pendingSubmissions, color: "text-amber-400" },
+            { label: "Admins",              value: stats.admins,            color: "text-emerald-400" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="glass rounded-[14px] p-4 flex items-center justify-between">
+              <span className="text-xs text-slate-500">{label}</span>
+              <span className={`text-lg font-heading font-bold ${color}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Charts + recent signups */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Revenue over time */}
+        {/* Placeholder area chart */}
         <div className="lg:col-span-2 glass rounded-[20px] p-6">
           <div className="flex items-center justify-between mb-5">
-            <p className="text-sm font-semibold text-slate-300">Revenus mensuels (MAD)</p>
-            <Badge variant="success">+30% ce mois</Badge>
+            <p className="text-sm font-semibold text-slate-300">Inscriptions cette semaine</p>
+            <Badge variant="primary">{stats?.totalUsers ?? "—"} total</Badge>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={MONTHLY_REVENUE} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={WEEKLY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>
-                <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#6366F1" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="month" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={customTooltipStyle} formatter={(v) => [formatMAD(Number(v)), "Revenue"]} />
-              <Area type="monotone" dataKey="revenue" stroke="#6366F1" strokeWidth={2} fill="url(#revenueGrad)" />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Area type="monotone" dataKey="users" stroke="#6366F1" strokeWidth={2} fill="url(#grad)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Role distribution pie */}
+        {/* Role breakdown */}
         <div className="glass rounded-[20px] p-6">
           <p className="text-sm font-semibold text-slate-300 mb-5">Répartition des rôles</p>
-          <ResponsiveContainer width="100%" height={150}>
-            <PieChart>
-              <Pie data={ROLE_DISTRIBUTION} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value">
-                {ROLE_DISTRIBUTION.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
+          {stats ? (
+            <>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart
+                  data={[
+                    { name: "Creators", value: stats.creators },
+                    { name: "Brands",   value: stats.brands },
+                    { name: "Admins",   value: stats.admins },
+                  ]}
+                  margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="name" tick={{ fill: "#64748B", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#64748B", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Bar dataKey="value" fill="#6366F1" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="space-y-2 mt-3">
+                {[
+                  { name: "Creators", value: stats.creators, color: "#6366F1" },
+                  { name: "Brands",   value: stats.brands,   color: "#EC4899" },
+                  { name: "Admins",   value: stats.admins,   color: "#10B981" },
+                ].map(({ name, value, color }) => (
+                  <div key={name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-slate-500">{name}</span>
+                    </div>
+                    <span className="text-slate-300 font-semibold">{value}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip contentStyle={customTooltipStyle} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-2">
-            {ROLE_DISTRIBUTION.map(({ name, value, color }) => (
-              <div key={name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                  <span className="text-slate-500">{name}</span>
-                </div>
-                <span className="text-slate-300 font-semibold">{value}</span>
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="h-[200px] animate-pulse bg-slate-800/40 rounded-[12px]" />
+          )}
         </div>
       </div>
 
-      {/* Challenges bar chart + new users */}
+      {/* Recent signups + quick nav */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Weekly submissions */}
-        <div className="lg:col-span-2 glass rounded-[20px] p-6">
-          <p className="text-sm font-semibold text-slate-300 mb-5">Soumissions par semaine</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={CHALLENGE_SUBMISSIONS} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="week" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={customTooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: "11px", color: "#64748B" }} />
-              <Bar dataKey="submissions" name="Soumissions" fill="#6366F1" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="approved"    name="Approuvées"  fill="#10B981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Monthly users */}
-        <div className="glass rounded-[20px] p-6">
-          <p className="text-sm font-semibold text-slate-300 mb-5">Nouvelles inscriptions</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={MONTHLY_REVENUE} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-              <XAxis type="number" tick={{ fill: "#64748B", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="month" tick={{ fill: "#64748B", fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
-              <Tooltip contentStyle={customTooltipStyle} />
-              <Bar dataKey="users" name="Inscrits" fill="#EC4899" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Recent activity + quick nav */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Activity feed */}
+        {/* Recent signups feed */}
         <div className="lg:col-span-2 glass rounded-[20px] overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/8">
-            <p className="text-sm font-semibold text-slate-300">Activité récente</p>
+          <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-300">Dernières inscriptions</p>
+            <Link href="/dashboard/admin/users" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Voir tout</Link>
           </div>
-          <div className="divide-y divide-white/5">
-            {RECENT_ACTIVITY.map((a) => (
-              <div key={a.id} className="flex items-center gap-4 px-6 py-3 hover:bg-white/2 transition-colors">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  a.variant === "success" ? "bg-emerald-400" :
-                  a.variant === "warning" ? "bg-amber-400" :
-                  a.variant === "error"   ? "bg-red-400" :
-                  a.variant === "primary" ? "bg-indigo-400" : "bg-slate-500"
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200">{a.label}</p>
-                  <p className="text-xs text-slate-600 truncate">{a.sub}</p>
+          {loading ? (
+            <div className="divide-y divide-white/5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-6 py-3.5 animate-pulse">
+                  <div className="w-8 h-8 rounded-full bg-slate-700/60 flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-slate-700/60 rounded w-32" />
+                    <div className="h-2.5 bg-slate-700/40 rounded w-48" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Badge variant={a.variant === "default" ? "default" : a.variant}>{a.time}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {(stats?.recentSignups ?? []).map((u) => {
+                const meta = ROLE_META[u.role] ?? ROLE_META.CREATOR;
+                return (
+                  <div key={u.id} className="flex items-center gap-4 px-6 py-3 hover:bg-white/[0.02] transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/30 to-pink-500/30 flex items-center justify-center text-xs font-bold text-slate-300 flex-shrink-0">
+                      {(u.name ?? u.email).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-200 truncate">{u.name ?? "—"}</p>
+                      <p className="text-xs text-slate-600 truncate">{u.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      {u.banned && <Badge variant="error">Banni</Badge>}
+                      <span className="text-xs text-slate-600 hidden sm:block">
+                        {new Date(u.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {!loading && (stats?.recentSignups ?? []).length === 0 && (
+                <div className="px-6 py-8 text-center text-slate-600 text-sm">Aucune inscription récente</div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Quick admin nav */}
+        {/* Quick nav */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 px-1 mb-3">Navigation rapide</p>
           {[
-            { href: "/dashboard/admin/users",      icon: Users,      label: "Gérer les users",   sub: "974 inscrits",        color: "text-indigo-400", bg: "bg-indigo-500/10" },
-            { href: "/dashboard/admin/challenges",  icon: Flame,      label: "Défis",             sub: "6 actifs en cours",   color: "text-orange-400", bg: "bg-orange-500/10" },
-            { href: "/dashboard/admin/missions",    icon: Briefcase,  label: "Missions",          sub: "Voir les commissions",color: "text-pink-400",   bg: "bg-pink-500/10"   },
-            { href: "/dashboard/admin/payments",    icon: DollarSign, label: "Paiements",         sub: "3 retraits en attente",color: "text-emerald-400",bg: "bg-emerald-500/10"},
+            { href: "/dashboard/admin/users",     icon: Users,     label: "Gérer les users",    sub: `${stats?.totalUsers ?? "…"} inscrits`,         color: "text-indigo-400", bg: "bg-indigo-500/10" },
+            { href: "/dashboard/admin/challenges", icon: Flame,     label: "Défis",              sub: `${stats?.activeChallenges ?? "…"} actifs`,      color: "text-orange-400", bg: "bg-orange-500/10" },
+            { href: "/dashboard/admin/missions",   icon: Briefcase, label: "Missions",           sub: `${stats?.totalMissions ?? "…"} au total`,       color: "text-pink-400",   bg: "bg-pink-500/10"   },
+            { href: "/dashboard/admin/payments",   icon: Building2, label: "Paiements",          sub: `${stats?.pendingSubmissions ?? "…"} en attente`, color: "text-emerald-400",bg: "bg-emerald-500/10"},
           ].map(({ href, icon: Icon, label, sub, color, bg }) => (
             <Link key={href} href={href}>
               <div className="glass rounded-[14px] p-4 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer group">

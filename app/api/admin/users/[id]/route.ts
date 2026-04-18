@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, err, withRateLimit, requireAdmin } from "@/lib/api-auth";
 import { AdminUpdateUserSchema } from "@/lib/schemas";
 
-// PATCH /api/admin/users/[id] — ban, verify, change role
+// PATCH /api/admin/users/[id] — change role, ban/unban
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,13 +23,21 @@ export async function PATCH(
   const parsed = AdminUpdateUserSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Données invalides");
 
+  // Protect: cannot ban or demote another admin
+  if (user.role === "ADMIN" && parsed.data.role && parsed.data.role !== "ADMIN") {
+    return err("Impossible de déclasser un admin");
+  }
+
   const updated = await prisma.user.update({
     where: { id },
-    data:  parsed.data,
+    data:  {
+      ...(parsed.data.role   !== undefined ? { role:   parsed.data.role }   : {}),
+      ...(parsed.data.banned !== undefined ? { banned: parsed.data.banned } : {}),
+    },
   });
 
   return ok({
-    user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role },
+    user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, banned: updated.banned },
   });
 }
 
@@ -55,4 +63,4 @@ export async function DELETE(
   return ok({ message: "Utilisateur supprimé" });
 }
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";

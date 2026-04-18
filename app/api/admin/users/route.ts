@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
       email:     u.email,
       role:      u.role,
       image:     u.image,
+      banned:    u.banned,
+      emailVerified: u.emailVerified,
       createdAt: u.createdAt,
       creatorProfile: u.creatorProfile,
       brandProfile:   u.brandProfile,

@@ -265,6 +265,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
         }
 
+        // Super admin: always enforce ADMIN role for this email
+        if (user.email === "mafluencer.ma@gmail.com") {
+          await prisma.user.update({
+            where: { email: user.email },
+            data:  { role: "ADMIN" },
+          });
+          console.log("[AUTH signIn] Super admin role enforced for:", user.email);
+        }
+
         if (account?.provider === "tiktok" && user.id) {
           await syncTikTokProfile(user.id, profile as Record<string, unknown>);
         }

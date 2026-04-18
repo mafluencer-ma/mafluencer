@@ -39,7 +39,8 @@ export default auth(function middleware(
 
   // ── /dashboard/admin/* → require ADMIN role ─────────────────────────────────
   if (pathname.startsWith("/dashboard/admin") && role !== "ADMIN") {
-    return Response.redirect(new URL("/dashboard/creator", req.url));
+    const dest = role === "BRAND" ? "/dashboard/brand" : "/dashboard/creator";
+    return Response.redirect(new URL(dest, req.url));
   }
 
   // ── /auth/signin → skip if already authenticated ────────────────────────────
