@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, ArrowRight, Video, Briefcase, Check, TrendingUp, CheckCircle, ChevronLeft } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, Video, Briefcase, Check, TrendingUp, CheckCircle, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -59,34 +59,59 @@ const roleOptions = [
 
 export default function RegisterForm() {
   const [role,          setRole]          = useState<Role>("CREATOR");
-  const [email,         setEmail]         = useState("");
   const [step,          setStep]          = useState<"role" | "auth">("role");
-  const [loadingEmail,  setLoadingEmail]  = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [loadingTikTok, setLoadingTikTok] = useState(false);
   const [loadingInsta,  setLoadingInsta]  = useState(false);
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [emailSent,     setEmailSent]     = useState(false);
+  const [showPassword,  setShowPassword]  = useState(false);
+  const [showConfirm,   setShowConfirm]   = useState(false);
 
-  // Role is encoded in the callbackUrl so the server can read and apply it
-  // after OAuth/magic-link verification — browser cookies are unreliable here.
+  // Form fields
+  const [name,     setName]     = useState("");
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm,  setConfirm]  = useState("");
+
+  // Role is encoded in callbackUrl for OAuth providers
   const callbackUrl = `/auth/complete?role=${role}`;
 
-  async function handleEmailSignup(e: React.FormEvent) {
+  async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return;
-    setLoadingEmail(true);
+    if (!name || !email || !password || !confirm) return;
+    if (password !== confirm) {
+      toast.error("Les mots de passe ne correspondent pas.");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Le mot de passe doit contenir au moins 8 caractères.");
+      return;
+    }
+
+    setLoadingSubmit(true);
     try {
-      const res = await signIn("resend", { email, callbackUrl, redirect: false });
-      if (res?.error) {
-        toast.error("Erreur lors de l'envoi du lien.");
-      } else {
-        setEmailSent(true);
-        toast.success("Lien de connexion envoyé !");
+      const res  = await fetch("/api/auth/register", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ name, email, password, role }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+
+      if (!res.ok) {
+        if (data.error === "email_taken") {
+          toast.error("Un compte vérifié existe déjà avec cet email.");
+        } else {
+          toast.error(data.error ?? "Une erreur est survenue.");
+        }
+        return;
       }
+
+      setEmailSent(true);
     } catch {
       toast.error("Une erreur est survenue.");
     } finally {
-      setLoadingEmail(false);
+      setLoadingSubmit(false);
     }
   }
 
@@ -95,7 +120,6 @@ export default function RegisterForm() {
     setLoading: (v: boolean) => void
   ) {
     setLoading(true);
-    document.cookie = `pending_role=${role};path=/;max-age=600`;
     try {
       await signIn(provider, { callbackUrl });
     } catch {
@@ -227,8 +251,11 @@ export default function RegisterForm() {
               <div>
                 <p className="font-semibold text-slate-200">Vérifie ta boîte mail</p>
                 <p className="text-sm text-slate-500 mt-1.5">
-                  Lien envoyé à{" "}
+                  Lien de vérification envoyé à{" "}
                   <span className="text-indigo-400 font-medium">{email}</span>
+                </p>
+                <p className="text-xs text-slate-600 mt-2">
+                  Clique sur le lien dans l'email pour activer ton compte.
                 </p>
               </div>
               <button
@@ -240,7 +267,7 @@ export default function RegisterForm() {
             </div>
           ) : (
             <>
-              {/* Google */}
+              {/* OAuth buttons */}
               <Button
                 variant="secondary"
                 size="lg"
@@ -257,7 +284,6 @@ export default function RegisterForm() {
                 S&apos;inscrire avec Google
               </Button>
 
-              {/* TikTok — creators only */}
               {role === "CREATOR" && (
                 <Button
                   variant="secondary"
@@ -271,7 +297,6 @@ export default function RegisterForm() {
                 </Button>
               )}
 
-              {/* Instagram — creators only */}
               {role === "CREATOR" && (
                 <Button
                   variant="secondary"
@@ -288,12 +313,21 @@ export default function RegisterForm() {
               {/* Divider */}
               <div className="flex items-center gap-3 my-5">
                 <div className="flex-1 h-px bg-white/[0.06]" />
-                <span className="text-xs text-slate-600 font-medium">ou par email</span>
+                <span className="text-xs text-slate-600 font-medium">ou avec un mot de passe</span>
                 <div className="flex-1 h-px bg-white/[0.06]" />
               </div>
 
-              {/* Email form */}
-              <form onSubmit={handleEmailSignup} className="space-y-4">
+              {/* Email + Password registration form */}
+              <form onSubmit={handleRegister} className="space-y-4">
+                <Input
+                  label="Nom complet"
+                  type="text"
+                  placeholder="Youssef Alami"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  leftIcon={<User size={16} />}
+                  required
+                />
                 <Input
                   label="Adresse email"
                   type="email"
@@ -303,7 +337,43 @@ export default function RegisterForm() {
                   leftIcon={<Mail size={16} />}
                   required
                 />
-                <Button type="submit" variant="primary" size="lg" className="w-full" loading={loadingEmail}>
+                <div className="relative">
+                  <Input
+                    label="Mot de passe"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="8 caractères minimum"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    leftIcon={<Lock size={16} />}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-[38px] text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    label="Confirmer le mot de passe"
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="Répète ton mot de passe"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    leftIcon={<Lock size={16} />}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    className="absolute right-3 top-[38px] text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <Button type="submit" variant="primary" size="lg" className="w-full" loading={loadingSubmit}>
                   Créer mon compte gratuitement
                   <ArrowRight size={16} />
                 </Button>

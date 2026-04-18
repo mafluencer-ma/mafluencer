@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 export default async function SigninPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; verified?: string }>;
 }) {
-  const { error } = await searchParams;
-  return <SigninForm errorParam={error} />;
+  const { error, verified } = await searchParams;
+  return <SigninForm errorParam={verified === "true" ? "verified" : error} />;
 }

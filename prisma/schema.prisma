@@ -109,15 +109,18 @@ model VerificationToken {
 // ========== CORE MODELS ==========
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  avatar        String?
-  image         String?
-  role          Role      @default(CREATOR)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  emailVerified      DateTime?
+  name               String?
+  avatar             String?
+  image              String?
+  role               Role      @default(CREATOR)
+  password           String?
+  verifyToken        String?
+  verifyTokenExpiry  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // NextAuth relations
   accounts Account[]
