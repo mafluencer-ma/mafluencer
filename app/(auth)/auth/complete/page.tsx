@@ -13,7 +13,7 @@
 
 import { Suspense, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 function Spinner() {
   return (
@@ -28,7 +28,6 @@ function Spinner() {
 
 function CompleteInner() {
   const { update } = useSession();
-  const router       = useRouter();
   const searchParams = useSearchParams();
   const role         = searchParams.get("role") === "BRAND" ? "BRAND" : "CREATOR";
 
@@ -43,21 +42,26 @@ function CompleteInner() {
         });
         const data = await res.json() as { role?: string };
 
+        const targetRole = data.role ?? role;
+
         // 2. Force JWT refresh — triggers jwt callback with trigger="update"
         //    which re-reads role from DB and writes fresh token to cookie
-        await update({ role: data.role ?? role });
+        await update({ role: targetRole });
 
-        // 3. Navigate to correct dashboard
-        const finalRole = data.role ?? role;
+        // 3. Wait for the new JWT cookie to be fully written to the browser
+        await new Promise((r) => setTimeout(r, 500));
+
+        // 4. Navigate to correct dashboard using a full page reload so the
+        //    browser picks up the freshly-written JWT cookie
         const dest =
-          finalRole === "BRAND" ? "/dashboard/brand"  :
-          finalRole === "ADMIN" ? "/dashboard/admin"  :
+          targetRole === "BRAND" ? "/dashboard/brand"  :
+          targetRole === "ADMIN" ? "/dashboard/admin"  :
           "/dashboard/creator";
 
-        router.replace(dest);
+        window.location.href = dest;
       } catch (e) {
         console.error("[auth/complete] error:", e);
-        router.replace("/dashboard/creator");
+        window.location.href = "/dashboard/creator";
       }
     }
 

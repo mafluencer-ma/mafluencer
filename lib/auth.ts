@@ -185,6 +185,57 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               role:  "CREATOR",
             },
           });
+
+          // Send welcome email to new users — non-blocking
+          try {
+            const { Resend: ResendSDK } = await import("resend");
+            const resend = new ResendSDK(process.env.RESEND_API_KEY!);
+            const displayName = user.name ? user.name.split(" ")[0] : "Creator";
+            await resend.emails.send({
+              from:    "Mafluencer <noreply@mafluencer.ma>",
+              to:      [user.email],
+              subject: "Bienvenue sur Mafluencer",
+              html: `
+                <div style="font-family:Inter,sans-serif;background:#0F172A;color:#E2E8F0;padding:40px;max-width:520px;margin:0 auto;border-radius:16px;">
+                  <div style="text-align:center;margin-bottom:32px;">
+                    <h1 style="font-size:24px;font-weight:700;margin:0;background:linear-gradient(135deg,#6366F1,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                      Mafluencer
+                    </h1>
+                  </div>
+                  <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;color:#E2E8F0;">
+                    Bienvenue sur Mafluencer, ${displayName} !
+                  </h2>
+                  <p style="color:#94A3B8;font-size:14px;margin-bottom:24px;line-height:1.6;">
+                    Ton compte a ete cree avec succes. Tu peux maintenant relever des defis creativite,
+                    construire ton Mafluencer Score et recevoir des missions payantes des meilleures
+                    marques du Maroc.
+                  </p>
+                  <div style="background:#1E293B;border-radius:12px;padding:20px;margin-bottom:24px;">
+                    <p style="font-size:13px;font-weight:600;color:#E2E8F0;margin:0 0 12px 0;">Ce qui t'attend :</p>
+                    <ul style="list-style:none;padding:0;margin:0;color:#94A3B8;font-size:13px;line-height:2;">
+                      <li>Defis creatifs hebdomadaires</li>
+                      <li>Score public (Rookie - Legend)</li>
+                      <li>Missions payantes des brands</li>
+                      <li>Leaderboard national des creators</li>
+                    </ul>
+                  </div>
+                  <div style="text-align:center;margin-bottom:32px;">
+                    <a href="${process.env.NEXTAUTH_URL ?? "https://mafluencer.ma"}/dashboard"
+                       style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#6366F1,#EC4899);color:#fff;text-decoration:none;border-radius:12px;font-weight:600;font-size:15px;">
+                      Acceder a mon dashboard
+                    </a>
+                  </div>
+                  <p style="color:#475569;font-size:12px;text-align:center;">
+                    L'equipe Mafluencer — Maroc
+                  </p>
+                </div>
+              `,
+            });
+            console.log("[AUTH signIn] Welcome email sent to:", user.email);
+          } catch (emailErr) {
+            // Email failure must never block auth
+            console.warn("[AUTH signIn] Welcome email failed (non-fatal):", emailErr);
+          }
         }
 
         if (account?.provider === "tiktok" && user.id) {
