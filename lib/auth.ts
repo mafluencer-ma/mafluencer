@@ -194,7 +194,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account, profile }) {
       if (!user.email) return false;
-      console.log("[AUTH signIn]", { userEmail: user?.email, provider: account?.provider });
 
       try {
         // Safety net: ensure user row exists (PrismaAdapter creates it, but guard anyway)
@@ -203,7 +202,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           select: { id: true },
         });
         if (!existing) {
-          console.log("[AUTH signIn] User missing — creating manually");
           await prisma.user.create({
             data: {
               email: user.email,
@@ -214,6 +212,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
 
           // Send welcome email to new users — non-blocking
+          // Send welcome email — non-blocking
           try {
             const { Resend: ResendSDK } = await import("resend");
             const resend = new ResendSDK(process.env.RESEND_API_KEY!);
@@ -258,11 +257,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 </div>
               `,
             });
-            console.log("[AUTH signIn] Welcome email sent to:", user.email);
-          } catch (emailErr) {
-            // Email failure must never block auth
-            console.warn("[AUTH signIn] Welcome email failed (non-fatal):", emailErr);
-          }
+          } catch { /* email failure must never block auth */ }
         }
 
         // Super admin: always enforce ADMIN role for this email
@@ -271,7 +266,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             where: { email: user.email },
             data:  { role: "ADMIN" },
           });
-          console.log("[AUTH signIn] Super admin role enforced for:", user.email);
         }
 
         if (account?.provider === "tiktok" && user.id) {
@@ -284,7 +278,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return true;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.error("[AUTH signIn] error:", msg);
         // OAuthAccountNotLinked fallback (allowDangerousEmailAccountLinking should prevent this)
         if (msg.includes("OAuthAccountNotLinked")) {
           return "/auth/signin?error=EmailExists";
@@ -294,15 +287,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async jwt({ token, user, trigger }) {
-      console.log("[AUTH jwt]", { userEmail: user?.email, tokenId: token?.id, trigger });
-
       // First sign-in: user object is populated — fetch role from DB and encode in token
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
           where:  { email: user.email },
           select: { id: true, role: true },
         });
-        console.log("[AUTH jwt] role fetched:", dbUser?.role ?? "NOT FOUND");
         if (dbUser) {
           token.id   = dbUser.id;
           token.role = dbUser.role;
@@ -315,17 +305,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where:  { id: token.id as string },
           select: { role: true },
         });
-        if (dbUser) {
-          token.role = dbUser.role;
-          console.log("[AUTH jwt] role refreshed via update():", dbUser.role);
-        }
+        if (dbUser) token.role = dbUser.role;
       }
 
       return token;
     },
 
     async session({ session, token }) {
-      console.log("[AUTH session]", { tokenId: token?.id, tokenRole: token?.role });
       if (session.user) {
         session.user.id   = token.id   as string;
         session.user.role = (token.role as string) ?? "CREATOR";
@@ -334,7 +320,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async redirect({ url, baseUrl }) {
-      console.log("[AUTH redirect]", { url, baseUrl });
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
         if (new URL(url).origin === baseUrl) return url;

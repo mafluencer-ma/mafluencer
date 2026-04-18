@@ -58,10 +58,21 @@ export default function ChallengeDetailClient({ challenge }: { challenge: Challe
   async function handleSubmit() {
     if (!agreedRules) { toast.error("Tu dois accepter les règles du défi"); return; }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setLoading(false);
-    setStep(3);
-    toast.success("Soumission envoyée avec succès ! 🎉");
+    try {
+      const res  = await fetch(`/api/challenges/${challenge.id}/submit`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ videoUrl, caption }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Erreur lors de la soumission"); return; }
+      setStep(3);
+      toast.success("Soumission envoyée avec succès !");
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

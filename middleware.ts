@@ -16,8 +16,6 @@ export default auth(function middleware(
   const isAuthed     = Boolean(session?.user);
   const role         = session?.user?.role ?? null;
 
-  console.log("[MIDDLEWARE]", { pathname, role, isAuth: isAuthed });
-
   // ── /dashboard (bare) → route by role ──────────────────────────────────────
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
     if (!isAuthed) {
@@ -37,10 +35,20 @@ export default auth(function middleware(
     return Response.redirect(signInUrl);
   }
 
-  // ── /dashboard/admin/* → require ADMIN role ─────────────────────────────────
+  // ── /dashboard/admin/* → ADMIN only ─────────────────────────────────────────
   if (pathname.startsWith("/dashboard/admin") && role !== "ADMIN") {
     const dest = role === "BRAND" ? "/dashboard/brand" : "/dashboard/creator";
     return Response.redirect(new URL(dest, req.url));
+  }
+
+  // ── /dashboard/brand/* → BRAND or ADMIN only ────────────────────────────────
+  if (pathname.startsWith("/dashboard/brand") && role !== "BRAND" && role !== "ADMIN") {
+    return Response.redirect(new URL("/dashboard/creator", req.url));
+  }
+
+  // ── /dashboard/creator/* → CREATOR or ADMIN only ────────────────────────────
+  if (pathname.startsWith("/dashboard/creator") && role !== "CREATOR" && role !== "ADMIN") {
+    return Response.redirect(new URL("/dashboard/brand", req.url));
   }
 
   // ── /auth/signin → skip if already authenticated ────────────────────────────

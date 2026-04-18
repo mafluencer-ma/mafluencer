@@ -86,10 +86,36 @@ export default function NewChallengeContent() {
 
   async function handleSubmit() {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1800));
-    setLoading(false);
-    setSubmitted(true);
-    toast.success("Défi sponsorisé créé ! Il sera visible après validation par Mafluencer.");
+    try {
+      const now      = new Date();
+      const endDate  = new Date(now);
+      endDate.setDate(endDate.getDate() + Number(form.duration));
+
+      const body: Record<string, unknown> = {
+        title:       form.title,
+        description: form.description,
+        category:    form.category,
+        type:        "SPONSORED",
+        startDate:   now.toISOString(),
+        endDate:     endDate.toISOString(),
+        rules:       form.rules,
+        prizeAmount: Number(form.prizeAmount),
+      };
+
+      const res  = await fetch("/api/challenges", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Erreur lors de la création"); return; }
+      setSubmitted(true);
+      toast.success("Défi sponsorisé créé ! Il sera visible après validation par Mafluencer.");
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const catGrad = CATEGORY_GRADIENTS[form.category] ?? "from-indigo-500 to-pink-500";
