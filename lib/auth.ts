@@ -222,13 +222,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
-      // Explicit session.update() call — re-fetch role
+      // update() called client-side — re-fetch role from DB to refresh JWT cookie
       if (trigger === "update" && token.id) {
         const dbUser = await prisma.user.findUnique({
           where:  { id: token.id as string },
           select: { role: true },
         });
-        if (dbUser) token.role = dbUser.role;
+        if (dbUser) {
+          token.role = dbUser.role;
+          console.log("[AUTH jwt] role refreshed via update():", dbUser.role);
+        }
       }
 
       return token;

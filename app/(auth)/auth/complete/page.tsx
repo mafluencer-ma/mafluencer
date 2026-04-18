@@ -1,70 +1,77 @@
-// /auth/complete — server-side role assignment after OAuth/magic-link signup.
+"use client";
+
+// /auth/complete — client component that forces JWT refresh after role update.
 //
 // Flow:
-//   1. User picks BRAND or CREATOR on /auth/register
-//   2. callbackUrl is set to /auth/complete?role=BRAND (or CREATOR)
-//   3. After auth completes, NextAuth redirects here
-//   4. We read the role param, update the user in DB, redirect to dashboard
-//
-// Only updates the role if the user currently has the default CREATOR role
-// (prevents overwriting an existing BRAND/ADMIN role on subsequent sign-ins).
+//   1. User picks BRAND/CREATOR on /auth/register
+//   2. callbackUrl = /auth/complete?role=BRAND
+//   3. NextAuth redirects here after OAuth/magic-link
+//   4. This page calls /api/auth/set-role to update DB role
+//   5. Calls useSession().update() — triggers jwt callback with trigger="update"
+//      which re-reads role from DB and rewrites the JWT cookie
+//   6. Redirects to the correct dashboard with the fresh JWT
 
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { Suspense, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default async function AuthCompletePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ role?: string }>;
-}) {
-  const session = await auth();
+function Spinner() {
+  return (
+    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-slate-400 text-sm">Configuration de ton compte...</p>
+      </div>
+    </div>
+  );
+}
 
-  // Not authenticated — send to signin
-  if (!session?.user?.id) {
-    redirect("/auth/signin");
-  }
+function CompleteInner() {
+  const { update } = useSession();
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const role         = searchParams.get("role") === "BRAND" ? "BRAND" : "CREATOR";
 
-  const { role: roleParam } = await searchParams;
-  const requestedRole = roleParam === "BRAND" ? "BRAND" : "CREATOR";
+  useEffect(() => {
+    async function applyRole() {
+      try {
+        // 1. Update role in DB via API route
+        const res  = await fetch("/api/auth/set-role", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ role }),
+        });
+        const data = await res.json() as { role?: string };
 
-  // Fetch current DB role
-  const dbUser = await prisma.user.findUnique({
-    where:  { id: session.user.id },
-    select: { role: true },
-  });
+        // 2. Force JWT refresh — triggers jwt callback with trigger="update"
+        //    which re-reads role from DB and writes fresh token to cookie
+        await update({ role: data.role ?? role });
 
-  // Only update if:
-  //   - roleParam is BRAND (CREATOR is the default so no update needed), OR
-  //   - user currently has default CREATOR role (don't demote BRAND/ADMIN)
-  if (requestedRole === "BRAND" && dbUser?.role === "CREATOR") {
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data:  { role: "BRAND" },
-    });
+        // 3. Navigate to correct dashboard
+        const finalRole = data.role ?? role;
+        const dest =
+          finalRole === "BRAND" ? "/dashboard/brand"  :
+          finalRole === "ADMIN" ? "/dashboard/admin"  :
+          "/dashboard/creator";
 
-    // Also create a bare BrandProfile so the brand dashboard loads
-    const existing = await prisma.brandProfile.findUnique({
-      where: { userId: session.user.id },
-    });
-    if (!existing) {
-      await prisma.brandProfile.create({
-        data: {
-          userId:      session.user.id,
-          companyName: session.user.name ?? "Ma Marque",
-          balance:     0,
-        },
-      });
+        router.replace(dest);
+      } catch (e) {
+        console.error("[auth/complete] error:", e);
+        router.replace("/dashboard/creator");
+      }
     }
-  }
 
-  // Redirect to the correct dashboard.
-  // Use the final role (updated or original).
-  const finalRole = requestedRole === "BRAND" ? "BRAND" : (dbUser?.role ?? "CREATOR");
-  const dest =
-    finalRole === "BRAND"  ? "/dashboard/brand"   :
-    finalRole === "ADMIN"  ? "/dashboard/admin"   :
-    "/dashboard/creator";
+    applyRole();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  redirect(dest);
+  return <Spinner />;
+}
+
+export default function AuthCompletePage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <CompleteInner />
+    </Suspense>
+  );
 }
