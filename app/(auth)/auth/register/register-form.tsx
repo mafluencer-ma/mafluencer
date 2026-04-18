@@ -67,15 +67,16 @@ export default function RegisterForm() {
   const [loadingInsta,  setLoadingInsta]  = useState(false);
   const [emailSent,     setEmailSent]     = useState(false);
 
-  const callbackUrl = "/dashboard";
+  // Role is encoded in the callbackUrl so the server can read and apply it
+  // after OAuth/magic-link verification — browser cookies are unreliable here.
+  const callbackUrl = `/auth/complete?role=${role}`;
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return;
     setLoadingEmail(true);
     try {
-      document.cookie = `pending_role=${role};path=/;max-age=600`;
-      const res = await signIn("resend", { email, callbackUrl: "/dashboard", redirect: false });
+      const res = await signIn("resend", { email, callbackUrl, redirect: false });
       if (res?.error) {
         toast.error("Erreur lors de l'envoi du lien.");
       } else {
