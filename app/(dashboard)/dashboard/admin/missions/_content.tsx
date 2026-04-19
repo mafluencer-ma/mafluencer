@@ -1,86 +1,151 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Briefcase, Search, X, ChevronDown, ChevronUp,
-  CheckCircle, Clock, Package, XCircle, DollarSign, TrendingUp,
+  CheckCircle, Clock, Package, DollarSign, RefreshCw, AlertCircle,
 } from "lucide-react";
-import Button from "@/components/ui/button";
 import Badge from "@/components/ui/badge";
 import PageHeader from "@/components/dashboard/page-header";
 import EmptyState from "@/components/dashboard/empty-state";
 import { cn, formatMAD } from "@/lib/utils";
 
-type MissionStatus = "PENDING" | "ACCEPTED" | "DELIVERED" | "PAID" | "REFUSED";
+type MissionStatus = "PENDING" | "ACCEPTED" | "DELIVERED" | "PAID";
 
 type AdminMission = {
-  id: string;
-  brand: string;
-  creator: string;
-  title: string;
-  type: string;
-  budget: number;
-  commission: number;
-  status: MissionStatus;
-  createdAt: string;
-  deliveredAt?: string;
+  id:          string;
+  title:       string;
+  brief:       string;
+  budget:      number;
+  commission:  number;
+  type:        string;
+  status:      MissionStatus;
+  createdAt:   string;
+  deliveryDate?: string | null;
+  brand:    { name: string | null; email: string };
+  creator:  { id: string; name: string | null };
+  brandProfile?: { companyName: string } | null;
 };
 
-const MISSIONS: AdminMission[] = [
-  { id: "m1",  brand: "Jumia Maroc",    creator: "yassine_create",  title: "Review Samsung Galaxy A35",     type: "VIDEO", budget: 1500, commission: 150,  status: "ACCEPTED",  createdAt: "15 Avr 2025" },
-  { id: "m2",  brand: "Inwi",           creator: "sarabeauty",      title: "Post sponsorisé offre Ramadan", type: "POST",  budget: 800,  commission: 80,   status: "DELIVERED", createdAt: "12 Avr 2025", deliveredAt: "18 Avr 2025" },
-  { id: "m3",  brand: "Marjane Market", creator: "techmaroc",       title: "UGC tutoriel application",      type: "UGC",   budget: 2000, commission: 200,  status: "PENDING",   createdAt: "14 Avr 2025" },
-  { id: "m4",  brand: "Zara Beauty MA", creator: "fatima_food",     title: "Story haul printemps",          type: "STORY", budget: 600,  commission: 60,   status: "PAID",      createdAt: "8 Avr 2025",  deliveredAt: "14 Avr 2025" },
-  { id: "m5",  brand: "Carrefour MA",   creator: "lifestyle_hind",  title: "Reel lifestyle été",            type: "POST",  budget: 700,  commission: 70,   status: "REFUSED",   createdAt: "28 Mar 2025" },
-  { id: "m6",  brand: "Jumia Maroc",    creator: "sport_amine",     title: "Unboxing AirPods",              type: "VIDEO", budget: 1200, commission: 120,  status: "PAID",      createdAt: "20 Mar 2025", deliveredAt: "25 Mar 2025" },
-  { id: "m7",  brand: "Inwi",           creator: "driss_gamer",     title: "Test gaming sur réseau 5G",     type: "VIDEO", budget: 950,  commission: 95,   status: "ACCEPTED",  createdAt: "10 Avr 2025" },
-  { id: "m8",  brand: "Marjane Market", creator: "nora_alami",      title: "Haul épicerie semaine",         type: "STORY", budget: 400,  commission: 40,   status: "DELIVERED", createdAt: "5 Avr 2025",  deliveredAt: "10 Avr 2025" },
-  { id: "m9",  brand: "Zara Beauty MA", creator: "rania_fassi",     title: "Tutoriel maquillage soirée",    type: "UGC",   budget: 1800, commission: 180,  status: "PENDING",   createdAt: "16 Avr 2025" },
-  { id: "m10", brand: "Carrefour MA",   creator: "younes_comedy",   title: "Post food lifestyle",           type: "POST",  budget: 500,  commission: 50,   status: "PAID",      createdAt: "1 Mar 2025",  deliveredAt: "6 Mar 2025" },
-];
+type Stats = {
+  totalRevenue:    number;
+  totalCommission: number;
+};
 
-const STATUS_META: Record<MissionStatus, { label: string; variant: "warning" | "primary" | "success" | "error" | "default"; icon: typeof Clock }> = {
+const STATUS_META: Record<MissionStatus, { label: string; variant: "warning" | "primary" | "success" | "default"; icon: typeof Clock }> = {
   PENDING:   { label: "En attente", variant: "warning", icon: Clock },
   ACCEPTED:  { label: "Acceptée",   variant: "primary", icon: CheckCircle },
   DELIVERED: { label: "Livrée",     variant: "success", icon: Package },
   PAID:      { label: "Payée",      variant: "success", icon: CheckCircle },
-  REFUSED:   { label: "Refusée",    variant: "error",   icon: XCircle },
 };
 
-const STATUS_TABS = ["Tous", "PENDING", "ACCEPTED", "DELIVERED", "PAID", "REFUSED"] as const;
+const STATUS_TABS = ["Tous", "PENDING", "ACCEPTED", "DELIVERED", "PAID"] as const;
 type StatusTab = typeof STATUS_TABS[number];
 
 export default function AdminMissionsContent() {
-  const [search, setSearch]       = useState("");
-  const [statusTab, setStatusTab] = useState<StatusTab>("Tous");
-  const [expanded, setExpanded]   = useState<string | null>(null);
+  const [missions,   setMissions]   = useState<AdminMission[]>([]);
+  const [stats,      setStats]      = useState<Stats | null>(null);
+  const [total,      setTotal]      = useState(0);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [search,     setSearch]     = useState("");
+  const [statusTab,  setStatusTab]  = useState<StatusTab>("Tous");
+  const [expanded,   setExpanded]   = useState<string | null>(null);
 
-  const filtered = useMemo(() => MISSIONS.filter((m) => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (statusTab !== "Tous") params.set("status", statusTab);
+
+      const res  = await fetch(`/api/admin/missions?${params}`);
+      if (!res.ok) throw new Error("Erreur serveur");
+      const data = await res.json() as {
+        missions: Array<{
+          id: string; title: string; brief: string; budget: number;
+          type: string; status: string; createdAt: string; deliveryDate?: string | null;
+          commission: number;
+          brand:   { name: string | null; email: string; brandProfile?: { companyName: string } | null };
+          creator: { id: string; name: string | null };
+        }>;
+        stats:      Stats;
+        pagination: { total: number };
+      };
+
+      setMissions(data.missions.map((m) => ({
+        id:          m.id,
+        title:       m.title,
+        brief:       m.brief,
+        budget:      m.budget,
+        commission:  m.commission,
+        type:        m.type,
+        status:      m.status as MissionStatus,
+        createdAt:   new Date(m.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" }),
+        deliveryDate: m.deliveryDate ? new Date(m.deliveryDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null,
+        brand:        { name: m.brand.name, email: m.brand.email },
+        creator:      m.creator,
+        brandProfile: m.brand.brandProfile,
+      })));
+      setStats(data.stats);
+      setTotal(data.pagination.total);
+    } catch (e) {
+      setError("Impossible de charger les missions.");
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusTab]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = missions.filter((m) => {
+    if (!search) return true;
     const q = search.toLowerCase();
-    if (q && !m.brand.toLowerCase().includes(q) && !m.creator.toLowerCase().includes(q) && !m.title.toLowerCase().includes(q)) return false;
-    if (statusTab !== "Tous" && m.status !== statusTab) return false;
-    return true;
-  }), [search, statusTab]);
+    const brandName = m.brandProfile?.companyName ?? m.brand.name ?? m.brand.email;
+    return (
+      m.title.toLowerCase().includes(q) ||
+      brandName.toLowerCase().includes(q) ||
+      (m.creator.name ?? "").toLowerCase().includes(q)
+    );
+  });
 
-  const totalCommission  = MISSIONS.filter(m => m.status === "PAID").reduce((a, m) => a + m.commission, 0);
-  const pendingCommission= MISSIONS.filter(m => ["DELIVERED", "ACCEPTED"].includes(m.status)).reduce((a, m) => a + m.commission, 0);
-  const totalVolume      = MISSIONS.reduce((a, m) => a + m.budget, 0);
+  const totalCommission  = missions.filter(m => m.status === "PAID").reduce((a, m) => a + m.commission, 0);
+  const pendingCommission = missions.filter(m => ["DELIVERED", "ACCEPTED"].includes(m.status)).reduce((a, m) => a + m.commission, 0);
+  const totalVolume       = missions.reduce((a, m) => a + m.budget, 0);
 
   return (
     <div className="max-w-6xl space-y-6">
       <PageHeader
         title="Missions"
-        subtitle="Toutes les missions de la plateforme"
+        subtitle={loading ? "Chargement..." : `${total} missions au total`}
         icon={Briefcase}
+        action={
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            Actualiser
+          </button>
+        }
       />
+
+      {error && (
+        <div className="flex items-center gap-3 p-4 rounded-[14px] bg-red-500/10 border border-red-500/20">
+          <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-300">{error}</p>
+        </div>
+      )}
 
       {/* Commission summary */}
       <div className="grid sm:grid-cols-4 gap-4">
         {[
-          { label: "Total missions",        value: MISSIONS.length,             color: "text-slate-300",   suffix: "" },
-          { label: "Volume total",          value: formatMAD(totalVolume),      color: "text-indigo-400",  suffix: "" },
-          { label: "Commissions encaissées",value: formatMAD(totalCommission),  color: "text-emerald-400", suffix: "" },
-          { label: "Commissions en attente",value: formatMAD(pendingCommission),color: "text-amber-400",   suffix: "" },
+          { label: "Total missions",         value: loading ? "…" : String(total),              color: "text-slate-300"   },
+          { label: "Volume total",           value: loading ? "…" : formatMAD(totalVolume),     color: "text-indigo-400"  },
+          { label: "Commissions encaissées", value: loading ? "…" : formatMAD(totalCommission), color: "text-emerald-400" },
+          { label: "Commissions en attente", value: loading ? "…" : formatMAD(pendingCommission), color: "text-amber-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="glass rounded-[16px] p-5">
             <div className="flex items-center gap-2 mb-2">
@@ -97,7 +162,12 @@ export default function AdminMissionsContent() {
         <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Marque, creator, mission..." className="w-full bg-slate-800/60 border border-white/8 rounded-[10px] pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Marque, creator, mission..."
+              className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[10px] pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+            />
             {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"><X size={13} /></button>}
           </div>
           <div className="flex gap-1 p-0.5 bg-slate-800/60 rounded-[10px] overflow-x-auto">
@@ -115,40 +185,53 @@ export default function AdminMissionsContent() {
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="glass rounded-[20px] overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-white/5 animate-pulse">
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-slate-700/60 rounded w-48" />
+                <div className="h-2.5 bg-slate-700/40 rounded w-64" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState emoji="📋" title="Aucune mission" description="Modifie les filtres" />
       ) : (
         <div className="glass rounded-[20px] overflow-hidden">
           {/* Header */}
-          <div className="hidden lg:grid grid-cols-[1.5fr_1fr_1fr_80px_1fr_80px_80px] gap-4 px-6 py-3 border-b border-white/8 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="hidden lg:grid grid-cols-[1.5fr_1fr_1fr_80px_1fr_80px_40px] gap-4 px-6 py-3 border-b border-white/[0.06] text-xs font-semibold text-slate-500 uppercase tracking-wider">
             <span>Mission</span><span>Marque</span><span>Creator</span><span>Type</span><span>Budget / Commission</span><span>Statut</span><span />
           </div>
           <div className="divide-y divide-white/5">
             {filtered.map((m) => {
-              const meta   = STATUS_META[m.status];
-              const Icon   = meta.icon;
-              const isOpen = expanded === m.id;
+              const meta    = STATUS_META[m.status] ?? STATUS_META.PENDING;
+              const Icon    = meta.icon;
+              const isOpen  = expanded === m.id;
+              const brand   = m.brandProfile?.companyName ?? m.brand.name ?? m.brand.email;
               return (
-                <div key={m.id} className={cn("transition-colors", isOpen ? "bg-white/3" : "hover:bg-white/2")}>
-                  <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr_1fr_80px_1fr_80px_80px] gap-4 items-center px-6 py-4">
+                <div key={m.id} className={cn("transition-colors", isOpen ? "bg-white/[0.02]" : "hover:bg-white/[0.01]")}>
+                  <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr_1fr_80px_1fr_80px_40px] gap-4 items-center px-6 py-4">
                     <p className="text-sm font-medium text-slate-200 truncate">{m.title}</p>
-                    <p className="text-xs text-slate-400 truncate">{m.brand}</p>
-                    <p className="text-xs text-indigo-400">@{m.creator}</p>
+                    <p className="text-xs text-slate-400 truncate">{brand}</p>
+                    <p className="text-xs text-indigo-400">{m.creator.name ?? "—"}</p>
                     <span className="text-xs text-slate-500">{m.type}</span>
                     <div>
                       <p className="text-sm font-bold text-slate-200">{formatMAD(m.budget)}</p>
                       <p className="text-xs text-emerald-400">+{formatMAD(m.commission)} comm.</p>
                     </div>
-                    <Badge variant={meta.variant}><Icon size={10} />{meta.label}</Badge>
+                    <Badge variant={meta.variant}><Icon size={10} className="inline mr-0.5" />{meta.label}</Badge>
                     <button onClick={() => setExpanded(isOpen ? null : m.id)} className="text-slate-600 hover:text-slate-300 flex items-center justify-center">
                       {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </button>
                   </div>
                   {isOpen && (
-                    <div className="px-6 pb-4 grid sm:grid-cols-3 gap-3 text-xs text-slate-600">
+                    <div className="px-6 pb-4 grid sm:grid-cols-3 gap-3 text-xs text-slate-600 border-t border-white/[0.04] pt-3">
                       <span>Créée le : <span className="text-slate-400">{m.createdAt}</span></span>
-                      {m.deliveredAt && <span>Livrée le : <span className="text-slate-400">{m.deliveredAt}</span></span>}
-                      <span>Commission nette : <span className="text-emerald-400 font-semibold">{formatMAD(m.commission)}</span></span>
+                      {m.deliveryDate && <span>Livraison prévue : <span className="text-slate-400">{m.deliveryDate}</span></span>}
+                      <span>Commission : <span className="text-emerald-400 font-semibold">{formatMAD(m.commission)}</span></span>
+                      {m.brief && <div className="sm:col-span-3 mt-1"><span className="text-slate-500">Brief : </span>{m.brief.slice(0, 200)}{m.brief.length > 200 ? "…" : ""}</div>}
                     </div>
                   )}
                 </div>
@@ -156,7 +239,7 @@ export default function AdminMissionsContent() {
             })}
           </div>
           {/* Footer totals */}
-          <div className="px-6 py-3 border-t border-white/8 flex items-center justify-between text-xs text-slate-600">
+          <div className="px-6 py-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-600">
             <span>{filtered.length} missions affichées</span>
             <span>
               Volume filtré : <span className="text-slate-300 font-semibold">{formatMAD(filtered.reduce((a, m) => a + m.budget, 0))}</span>

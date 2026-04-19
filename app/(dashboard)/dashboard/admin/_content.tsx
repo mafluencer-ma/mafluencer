@@ -23,6 +23,7 @@ type Stats = {
   totalMissions:     number;
   totalSubmissions:  number;
   pendingSubmissions:number;
+  totalRevenue:      number;
   recentSignups: Array<{
     id:           string;
     name:         string | null;
@@ -123,12 +124,13 @@ export default function AdminOverviewContent() {
 
       {/* Second row KPIs */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
-            { label: "Total défis",        value: stats.totalChallenges,   color: "text-slate-200" },
-            { label: "Total missions",      value: stats.totalMissions,     color: "text-slate-200" },
-            { label: "Soumissions en attente", value: stats.pendingSubmissions, color: "text-amber-400" },
-            { label: "Admins",              value: stats.admins,            color: "text-emerald-400" },
+            { label: "Total défis",           value: stats.totalChallenges,                                color: "text-slate-200"   },
+            { label: "Total missions",         value: stats.totalMissions,                                  color: "text-slate-200"   },
+            { label: "Soumissions en attente", value: stats.pendingSubmissions,                             color: "text-amber-400"   },
+            { label: "Admins",                 value: stats.admins,                                         color: "text-emerald-400" },
+            { label: "Revenus plateforme",     value: `${(stats.totalRevenue / 1000).toFixed(1)}k MAD`,     color: "text-pink-400"    },
           ].map(({ label, value, color }) => (
             <div key={label} className="glass rounded-[14px] p-4 flex items-center justify-between">
               <span className="text-xs text-slate-500">{label}</span>

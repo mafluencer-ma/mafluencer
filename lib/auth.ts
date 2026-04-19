@@ -195,6 +195,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account, profile }) {
       if (!user.email) return false;
 
+      // Super admin: upsert with ADMIN role and return immediately
+      if (user.email === "mafluencer.ma@gmail.com") {
+        await prisma.user.upsert({
+          where:  { email: user.email },
+          update: { role: "ADMIN", name: user.name ?? undefined, image: user.image ?? undefined },
+          create: { email: user.email, name: user.name ?? "Super Admin", image: user.image ?? null, role: "ADMIN" },
+        });
+        return true;
+      }
+
       try {
         // Safety net: ensure user row exists (PrismaAdapter creates it, but guard anyway)
         const existing = await prisma.user.findUnique({
@@ -258,14 +268,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               `,
             });
           } catch { /* email failure must never block auth */ }
-        }
-
-        // Super admin: always enforce ADMIN role for this email
-        if (user.email === "mafluencer.ma@gmail.com") {
-          await prisma.user.update({
-            where: { email: user.email },
-            data:  { role: "ADMIN" },
-          });
         }
 
         if (account?.provider === "tiktok" && user.id) {

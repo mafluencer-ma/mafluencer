@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
     totalSubmissions,
     pendingSubmissions,
     recentSignups,
+    revenueAgg,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: "CREATOR" } }),
@@ -44,6 +45,10 @@ export async function GET(req: NextRequest) {
         banned:    true,
       },
     }),
+    prisma.transaction.aggregate({
+      where: { status: "COMPLETED" },
+      _sum:  { amount: true },
+    }),
   ]);
 
   return ok({
@@ -57,6 +62,7 @@ export async function GET(req: NextRequest) {
     totalSubmissions,
     pendingSubmissions,
     recentSignups,
+    totalRevenue: revenueAgg._sum.amount ?? 0,
   });
 }
 
