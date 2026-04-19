@@ -221,7 +221,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
           });
 
-          // Send welcome email to new users — non-blocking
           // Send welcome email — non-blocking
           try {
             const { Resend: ResendSDK } = await import("resend");
