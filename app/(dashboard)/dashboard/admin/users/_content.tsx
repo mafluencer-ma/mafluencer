@@ -12,7 +12,7 @@ import EmptyState from "@/components/dashboard/empty-state";
 import { cn, formatNumber } from "@/lib/utils";
 import toast from "react-hot-toast";
 
-type UserRole = "CREATOR" | "BRAND" | "ADMIN";
+type UserRole = "CREATOR" | "BRAND" | "ADMIN" | "MANAGER";
 
 type AdminUser = {
   id:           string;
@@ -29,13 +29,55 @@ type AdminUser = {
 
 type Pagination = { page: number; limit: number; total: number };
 
-const ROLE_OPTIONS: Array<"ALL" | UserRole> = ["ALL", "CREATOR", "BRAND", "ADMIN"];
+const ROLE_OPTIONS: Array<"ALL" | UserRole> = ["ALL", "CREATOR", "BRAND", "MANAGER", "ADMIN"];
 
-const ROLE_META: Record<UserRole, { label: string; variant: "primary" | "warning" | "success" }> = {
-  CREATOR: { label: "Creator", variant: "primary" },
-  BRAND:   { label: "Brand",   variant: "warning" },
-  ADMIN:   { label: "Admin",   variant: "success" },
+const ROLE_META: Record<UserRole, { label: string; color: string }> = {
+  CREATOR: { label: "Creator", color: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" },
+  BRAND:   { label: "Brand",   color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+  MANAGER: { label: "Manager", color: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
+  ADMIN:   { label: "Admin",   color: "bg-red-500/20 text-red-300 border-red-500/30" },
 };
+
+const ALL_ROLES: UserRole[] = ["CREATOR", "BRAND", "MANAGER", "ADMIN"];
+
+function RoleBadge({ role }: { role: UserRole }) {
+  const meta = ROLE_META[role] ?? { label: role, color: "bg-slate-500/20 text-slate-300 border-slate-500/30" };
+  return (
+    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border", meta.color)}>
+      {meta.label}
+    </span>
+  );
+}
+
+interface ConfirmDialogProps {
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ message, onConfirm, onCancel }: ConfirmDialogProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onCancel}>
+      <div className="glass rounded-[16px] border border-white/[0.08] p-6 max-w-sm w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <p className="text-sm text-slate-200 mb-6 leading-relaxed">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-xs rounded-[10px] text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-xs rounded-[10px] bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/20 transition-all"
+          >
+            Confirmer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminUsersContent() {
   const [users,       setUsers]       = useState<AdminUser[]>([]);
@@ -46,7 +88,7 @@ export default function AdminUsersContent() {
   const [roleFilter,  setRoleFilter]  = useState<"ALL" | UserRole>("ALL");
   const [actionMenu,  setActionMenu]  = useState<string | null>(null);
   const [processing,  setProcessing]  = useState<string | null>(null);
-  // Debounced search
+  const [confirm,     setConfirm]     = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
@@ -96,14 +138,28 @@ export default function AdminUsersContent() {
     }
   }
 
-  async function changeRole(id: string, role: UserRole) {
-    await patchUser(id, { role });
-    toast.success(`Rôle changé → ${role}`);
+  function askChangeRole(id: string, role: UserRole) {
+    setActionMenu(null);
+    setConfirm({
+      message: `Changer le rôle de cet utilisateur en "${role}" ?`,
+      onConfirm: async () => {
+        setConfirm(null);
+        await patchUser(id, { role });
+        toast.success(`Rôle changé → ${role}`);
+      },
+    });
   }
 
-  async function banUser(id: string) {
-    await patchUser(id, { banned: true });
-    toast.success("Utilisateur banni");
+  function askBan(id: string) {
+    setActionMenu(null);
+    setConfirm({
+      message: "Bannir cet utilisateur ? Il ne pourra plus se connecter.",
+      onConfirm: async () => {
+        setConfirm(null);
+        await patchUser(id, { banned: true });
+        toast.success("Utilisateur banni");
+      },
+    });
   }
 
   async function unbanUser(id: string) {
@@ -115,12 +171,20 @@ export default function AdminUsersContent() {
     total:    users.length,
     creators: users.filter(u => u.role === "CREATOR").length,
     brands:   users.filter(u => u.role === "BRAND").length,
+    managers: users.filter(u => u.role === "MANAGER").length,
     banned:   users.filter(u => u.banned).length,
-    pending:  users.filter(u => !u.emailVerified && !u.banned).length,
   };
 
   return (
     <div className="max-w-6xl space-y-6" onClick={() => setActionMenu(null)}>
+      {confirm && (
+        <ConfirmDialog
+          message={confirm.message}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
       <PageHeader
         title="Utilisateurs"
         subtitle={`${pagination.total} inscrits au total`}
@@ -147,11 +211,11 @@ export default function AdminUsersContent() {
       {/* Summary pills */}
       <div className="flex flex-wrap gap-3">
         {[
-          { label: "Total",      value: pagination.total, color: "text-slate-300" },
-          { label: "Creators",   value: counts.creators,  color: "text-indigo-400" },
-          { label: "Brands",     value: counts.brands,    color: "text-pink-400" },
-          { label: "Bannis",     value: counts.banned,    color: "text-red-400" },
-          { label: "En attente", value: counts.pending,   color: "text-amber-400" },
+          { label: "Total",    value: pagination.total, color: "text-slate-300" },
+          { label: "Creators", value: counts.creators,  color: "text-indigo-400" },
+          { label: "Brands",   value: counts.brands,    color: "text-blue-400" },
+          { label: "Managers", value: counts.managers,  color: "text-orange-400" },
+          { label: "Bannis",   value: counts.banned,    color: "text-red-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="glass rounded-[12px] px-4 py-2.5 flex items-center gap-2">
             <span className={cn("text-lg font-heading font-bold", color)}>{value}</span>
@@ -175,7 +239,7 @@ export default function AdminUsersContent() {
             {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"><X size={13} /></button>}
           </div>
           {/* Role filter */}
-          <div className="flex gap-1 p-0.5 bg-slate-800/60 rounded-[10px]">
+          <div className="flex gap-1 p-0.5 bg-slate-800/60 rounded-[10px] flex-wrap">
             {ROLE_OPTIONS.map((r) => (
               <button key={r} onClick={() => setRoleFilter(r)} className={cn(
                 "px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all",
@@ -216,20 +280,28 @@ export default function AdminUsersContent() {
           </div>
           <div className="divide-y divide-white/5">
             {users.map((u) => {
-              const roleMeta = ROLE_META[u.role];
-              const isBanned = u.banned;
-              const isPending = !u.emailVerified && !isBanned && u.role !== "ADMIN";
+              const isBanned    = u.banned;
+              const isPending   = !u.emailVerified && !isBanned && u.role !== "ADMIN" && u.role !== "MANAGER";
               const statusLabel = isBanned ? "Banni" : isPending ? "En attente" : "Actif";
-              const statusVariant = isBanned ? "error" as const : isPending ? "warning" as const : "success" as const;
+              const statusColor = isBanned
+                ? "bg-red-500/20 text-red-300 border-red-500/30"
+                : isPending
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                  : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
               const isProcessing = processing === u.id;
 
               return (
                 <div key={u.id} className="grid grid-cols-1 lg:grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr_60px] gap-4 items-center px-6 py-4 hover:bg-white/[0.02] transition-colors relative">
-                  {/* Name */}
+                  {/* Name + avatar */}
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500/30 to-pink-500/30 flex items-center justify-center text-xs font-bold text-slate-200 flex-shrink-0">
-                      {(u.name ?? u.email).slice(0, 2).toUpperCase()}
-                    </div>
+                    {u.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={u.image} alt={u.name ?? ""} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500/30 to-pink-500/30 flex items-center justify-center text-xs font-bold text-slate-200 flex-shrink-0">
+                        {(u.name ?? u.email).slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-200 truncate">{u.name ?? "—"}</p>
                       {u.brandProfile && <p className="text-xs text-slate-600">{u.brandProfile.companyName}</p>}
@@ -238,9 +310,11 @@ export default function AdminUsersContent() {
                   {/* Email */}
                   <p className="text-xs text-slate-500 truncate hidden lg:block">{u.email}</p>
                   {/* Role */}
-                  <Badge variant={roleMeta.variant}>{roleMeta.label}</Badge>
+                  <RoleBadge role={u.role} />
                   {/* Status */}
-                  <Badge variant={statusVariant}>{statusLabel}</Badge>
+                  <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border", statusColor)}>
+                    {statusLabel}
+                  </span>
                   {/* Score / Info */}
                   <div className="text-xs text-slate-500">
                     {u.role === "CREATOR" && u.creatorProfile && (
@@ -250,9 +324,10 @@ export default function AdminUsersContent() {
                       </div>
                     )}
                     {u.role === "BRAND" && u.brandProfile && (
-                      <p className="text-pink-300 font-semibold">{u.brandProfile.companyName}</p>
+                      <p className="text-blue-300 font-semibold">{u.brandProfile.companyName}</p>
                     )}
-                    {u.role === "ADMIN" && <p className="text-emerald-300 font-semibold">Admin</p>}
+                    {u.role === "ADMIN"   && <p className="text-red-300 font-semibold">Super Admin</p>}
+                    {u.role === "MANAGER" && <p className="text-orange-300 font-semibold">Manager</p>}
                   </div>
                   {/* Joined */}
                   <p className="text-xs text-slate-600 hidden lg:block">
@@ -268,7 +343,7 @@ export default function AdminUsersContent() {
                       <MoreVertical size={15} />
                     </button>
                     {actionMenu === u.id && (
-                      <div className="absolute right-0 top-9 z-20 w-52 glass rounded-[12px] border border-white/[0.08] shadow-xl py-1">
+                      <div className="absolute right-0 top-9 z-20 w-56 glass rounded-[12px] border border-white/[0.08] shadow-xl py-1">
                         {u.role === "CREATOR" && (
                           <Link href={`/creator/${(u.name ?? u.email).toLowerCase().replace(/\s/g, "_")}`} target="_blank">
                             <button className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors">
@@ -277,23 +352,26 @@ export default function AdminUsersContent() {
                           </Link>
                         )}
                         {!isBanned ? (
-                          <button onClick={() => banUser(u.id)} className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-400 hover:bg-white/5 transition-colors">
-                            <Ban size={12} /> Bannir l'utilisateur
+                          <button onClick={() => askBan(u.id)} className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-400 hover:bg-white/5 transition-colors">
+                            <Ban size={12} /> Bannir l&apos;utilisateur
                           </button>
                         ) : (
                           <button onClick={() => unbanUser(u.id)} className="w-full flex items-center gap-2 px-4 py-2 text-xs text-amber-400 hover:bg-white/5 transition-colors">
                             <CheckCircle size={12} /> Réactiver
                           </button>
                         )}
-                        {u.role !== "ADMIN" && (
-                          <div className="border-t border-white/[0.06] mt-1 pt-1">
-                            {(["CREATOR", "BRAND"] as UserRole[]).filter(r => r !== u.role).map((r) => (
-                              <button key={r} onClick={() => changeRole(u.id, r)} className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors">
-                                <ShieldCheck size={12} /> Changer rôle → {r}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                        {/* Role change — exclude current role */}
+                        <div className="border-t border-white/[0.06] mt-1 pt-1">
+                          {ALL_ROLES.filter(r => r !== u.role).map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => askChangeRole(u.id, r)}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors"
+                            >
+                              <ShieldCheck size={12} /> Changer rôle → {r}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

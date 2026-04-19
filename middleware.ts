@@ -15,6 +15,7 @@ export default auth(function middleware(
   const session      = req.auth;
   const isAuthed     = Boolean(session?.user);
   const role         = session?.user?.role ?? null;
+  const isAdmin      = role === "ADMIN" || role === "MANAGER";
 
   // ── /dashboard (bare) → route by role ──────────────────────────────────────
   if (pathname === "/dashboard" || pathname === "/dashboard/") {
@@ -22,8 +23,8 @@ export default auth(function middleware(
       return Response.redirect(new URL("/auth/signin?callbackUrl=%2Fdashboard", req.url));
     }
     const dest =
-      role === "ADMIN" ? "/dashboard/admin" :
-      role === "BRAND" ? "/dashboard/brand" :
+      isAdmin            ? "/dashboard/admin" :
+      role === "BRAND"   ? "/dashboard/brand" :
       "/dashboard/creator";
     return Response.redirect(new URL(dest, req.url));
   }
@@ -35,27 +36,27 @@ export default auth(function middleware(
     return Response.redirect(signInUrl);
   }
 
-  // ── /dashboard/admin/* → ADMIN only ─────────────────────────────────────────
-  if (pathname.startsWith("/dashboard/admin") && role !== "ADMIN") {
+  // ── /dashboard/admin/* → ADMIN or MANAGER only ──────────────────────────────
+  if (pathname.startsWith("/dashboard/admin") && !isAdmin) {
     const dest = role === "BRAND" ? "/dashboard/brand" : "/dashboard/creator";
     return Response.redirect(new URL(dest, req.url));
   }
 
-  // ── /dashboard/brand/* → BRAND or ADMIN only ────────────────────────────────
-  if (pathname.startsWith("/dashboard/brand") && role !== "BRAND" && role !== "ADMIN") {
+  // ── /dashboard/brand/* → BRAND, ADMIN or MANAGER only ──────────────────────
+  if (pathname.startsWith("/dashboard/brand") && role !== "BRAND" && !isAdmin) {
     return Response.redirect(new URL("/dashboard/creator", req.url));
   }
 
-  // ── /dashboard/creator/* → CREATOR or ADMIN only ────────────────────────────
-  if (pathname.startsWith("/dashboard/creator") && role !== "CREATOR" && role !== "ADMIN") {
+  // ── /dashboard/creator/* → CREATOR, ADMIN or MANAGER only ──────────────────
+  if (pathname.startsWith("/dashboard/creator") && role !== "CREATOR" && !isAdmin) {
     return Response.redirect(new URL("/dashboard/brand", req.url));
   }
 
   // ── /auth/signin → skip if already authenticated ────────────────────────────
   if (pathname === "/auth/signin" && isAuthed) {
     const dest =
-      role === "ADMIN" ? "/dashboard/admin" :
-      role === "BRAND" ? "/dashboard/brand" :
+      isAdmin            ? "/dashboard/admin" :
+      role === "BRAND"   ? "/dashboard/brand" :
       "/dashboard/creator";
     return Response.redirect(new URL(dest, req.url));
   }

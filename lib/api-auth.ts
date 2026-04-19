@@ -23,7 +23,7 @@ export async function requireAuth(): Promise<
 }
 
 export async function requireRole(
-  role: "ADMIN" | "BRAND" | "CREATOR"
+  role: "ADMIN" | "MANAGER" | "BRAND" | "CREATOR"
 ): Promise<{ user: AuthUser; error: null } | { user: null; error: NextResponse }> {
   const result = await requireAuth();
   if (result.error) return result;
@@ -36,8 +36,19 @@ export async function requireRole(
   return result;
 }
 
-export async function requireAdmin() {
-  return requireRole("ADMIN");
+// ADMIN and MANAGER both have full admin access
+export async function requireAdmin(): Promise<
+  { user: AuthUser; error: null } | { user: null; error: NextResponse }
+> {
+  const result = await requireAuth();
+  if (result.error) return result;
+  if (result.user.role !== "ADMIN" && result.user.role !== "MANAGER") {
+    return {
+      user: null,
+      error: NextResponse.json({ error: "Accès refusé — admin requis" }, { status: 403 }),
+    };
+  }
+  return result;
 }
 
 // ── Rate limiting helper ──────────────────────────────────────────────────────

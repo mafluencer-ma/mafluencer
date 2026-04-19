@@ -12,9 +12,10 @@ datasource db {
 // ========== ENUMS ==========
 
 enum Role {
+  ADMIN
+  MANAGER
   CREATOR
   BRAND
-  ADMIN
 }
 
 enum ChallengeType {

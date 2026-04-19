@@ -289,16 +289,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async jwt({ token, user, trigger }) {
+      // Super admin: always force ADMIN role in token regardless of DB state
+      if (user?.email === "mafluencer.ma@gmail.com" || token.email === "mafluencer.ma@gmail.com") {
+        token.role = "ADMIN";
+      }
+
       // First sign-in: user object is populated — fetch role from DB and encode in token
-      if (user?.email) {
+      if (user?.email && user.email !== "mafluencer.ma@gmail.com") {
         const dbUser = await prisma.user.findUnique({
           where:  { email: user.email },
-          select: { id: true, role: true },
+          select: { id: true, role: true, name: true },
         });
         if (dbUser) {
           token.id   = dbUser.id;
           token.role = dbUser.role;
         }
+      } else if (user?.email === "mafluencer.ma@gmail.com") {
+        const dbUser = await prisma.user.findUnique({
+          where:  { email: user.email },
+          select: { id: true },
+        });
+        if (dbUser) token.id = dbUser.id;
       }
 
       // update() called client-side — re-fetch role from DB to refresh JWT cookie
@@ -307,7 +318,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where:  { id: token.id as string },
           select: { role: true },
         });
-        if (dbUser) token.role = dbUser.role;
+        // Super admin role is always ADMIN regardless of what DB says
+        if (dbUser) {
+          token.role = token.email === "mafluencer.ma@gmail.com" ? "ADMIN" : dbUser.role;
+        }
       }
 
       return token;
@@ -315,8 +329,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.id   = token.id   as string;
-        session.user.role = (token.role as string) ?? "CREATOR";
+        session.user.id    = token.id    as string;
+        session.user.role  = (token.role as string) ?? "CREATOR";
+        session.user.email = token.email as string;
+        session.user.name  = token.name  as string;
+        session.user.image = token.picture as string;
       }
       return session;
     },

@@ -83,7 +83,7 @@ export const DepositSchema = z.object({
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
 export const AdminUpdateUserSchema = z.object({
-  role:   z.enum(["CREATOR", "BRAND", "ADMIN"]).optional(),
+  role:   z.enum(["CREATOR", "BRAND", "ADMIN", "MANAGER"]).optional(),
   banned: z.boolean().optional(),
 });
 
