@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Users, Search, X, CheckCircle, Ban,
-  ShieldCheck, MoreVertical, Eye, RefreshCw, AlertCircle,
+  ShieldCheck, MoreVertical, Eye, RefreshCw, AlertCircle, UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import Badge from "@/components/ui/badge";
@@ -89,6 +89,9 @@ export default function AdminUsersContent() {
   const [actionMenu,  setActionMenu]  = useState<string | null>(null);
   const [processing,  setProcessing]  = useState<string | null>(null);
   const [confirm,     setConfirm]     = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [addModal,    setAddModal]    = useState(false);
+  const [addForm,     setAddForm]     = useState({ name: "", email: "", password: "", role: "CREATOR" as UserRole, companyName: "" });
+  const [adding,      setAdding]      = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
@@ -167,6 +170,44 @@ export default function AdminUsersContent() {
     toast.success("Utilisateur réactivé");
   }
 
+  async function handleAddUser() {
+    if (!addForm.name.trim() || !addForm.email.trim() || !addForm.password) {
+      toast.error("Nom, email et mot de passe requis");
+      return;
+    }
+    if (addForm.password.length < 8) {
+      toast.error("Mot de passe : 8 caractères minimum");
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          name:        addForm.name,
+          email:       addForm.email,
+          password:    addForm.password,
+          role:        addForm.role,
+          companyName: addForm.companyName || undefined,
+        }),
+      });
+      const data = await res.json() as { user?: AdminUser; error?: string };
+      if (!res.ok) {
+        toast.error(data.error === "email_taken" ? "Cet email est déjà utilisé" : (data.error ?? "Erreur"));
+        return;
+      }
+      if (data.user) setUsers((us) => [data.user!, ...us]);
+      setAddModal(false);
+      setAddForm({ name: "", email: "", password: "", role: "CREATOR", companyName: "" });
+      toast.success("Utilisateur créé avec succès");
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setAdding(false);
+    }
+  }
+
   const counts = {
     total:    users.length,
     creators: users.filter(u => u.role === "CREATOR").length,
@@ -185,19 +226,107 @@ export default function AdminUsersContent() {
         />
       )}
 
+      {/* Add User Modal */}
+      {addModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setAddModal(false)}>
+          <div className="glass rounded-[20px] border border-white/[0.08] p-7 w-full max-w-md mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-heading font-bold text-slate-100 mb-5">Ajouter un utilisateur</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-slate-400 mb-1 block">Nom complet</label>
+                <input
+                  value={addForm.name}
+                  onChange={(e) => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Nom Prénom"
+                  className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[10px] px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400 mb-1 block">Email</label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="email@exemple.com"
+                  className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[10px] px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400 mb-1 block">Rôle</label>
+                <select
+                  value={addForm.role}
+                  onChange={(e) => setAddForm(f => ({ ...f, role: e.target.value as UserRole }))}
+                  className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[10px] px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                >
+                  <option value="CREATOR">Creator</option>
+                  <option value="BRAND">Brand</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </div>
+              {addForm.role === "BRAND" && (
+                <div>
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">Nom de l&apos;entreprise</label>
+                  <input
+                    value={addForm.companyName}
+                    onChange={(e) => setAddForm(f => ({ ...f, companyName: e.target.value }))}
+                    placeholder="Ma Marque SARL"
+                    className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[10px] px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-medium text-slate-400 mb-1 block">Mot de passe</label>
+                <input
+                  type="password"
+                  value={addForm.password}
+                  onChange={(e) => setAddForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="Min. 8 caractères"
+                  className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[10px] px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setAddModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm rounded-[10px] text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all border border-white/[0.06]"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleAddUser}
+                disabled={adding}
+                className="flex-1 px-4 py-2.5 text-sm rounded-[10px] bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/20 transition-all disabled:opacity-50 font-medium"
+              >
+                {adding ? "Création..." : "Créer l'utilisateur"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title="Utilisateurs"
         subtitle={`${pagination.total} inscrits au total`}
         icon={Users}
         action={
-          <button
-            onClick={() => load(1)}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all disabled:opacity-50"
-          >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-            Actualiser
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => load(1)}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+              Actualiser
+            </button>
+            <button
+              onClick={() => setAddModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/20 transition-all"
+            >
+              <UserPlus size={13} />
+              Ajouter
+            </button>
+          </div>
         }
       />
 

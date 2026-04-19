@@ -18,6 +18,7 @@ import {
   Users,
   ShieldCheck,
   TrendingUp,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,7 @@ const adminNav = [
   { href: "/dashboard/admin/challenges", label: "Défis", icon: Trophy },
   { href: "/dashboard/admin/missions", label: "Missions", icon: Briefcase },
   { href: "/dashboard/admin/payments", label: "Paiements", icon: Wallet },
+  { href: "/dashboard/admin/marketing", label: "Marketing", icon: Megaphone },
   { href: "/dashboard/admin/reports", label: "Rapports", icon: TrendingUp },
 ];
 
@@ -53,14 +55,18 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string })?.role?.toLowerCase() ?? "creator";
 
+  const isAdminRole = role === "admin" || role === "manager";
+
   const nav =
-    role === "admin" ? adminNav : role === "brand" ? brandNav : creatorNav;
+    isAdminRole ? adminNav : role === "brand" ? brandNav : creatorNav;
 
   const roleLabel =
-    role === "admin" ? "Admin" : role === "brand" ? "Brand" : "Creator";
+    role === "admin"   ? "Admin"   :
+    role === "manager" ? "Manager" :
+    role === "brand"   ? "Brand"   : "Creator";
 
   const RoleIcon =
-    role === "admin" ? ShieldCheck : role === "brand" ? Briefcase : Trophy;
+    isAdminRole ? ShieldCheck : role === "brand" ? Briefcase : Trophy;
 
   return (
     <aside className="hidden lg:flex flex-col w-60 min-h-[calc(100vh-4rem)] glass-dark border-r border-white/8 py-6 px-3 gap-1">
@@ -77,8 +83,9 @@ export default function Sidebar() {
       {/* Nav items */}
       <nav className="flex flex-col gap-0.5 flex-1">
         {nav.map(({ href, label, icon: Icon }) => {
+          const dashRoot = isAdminRole ? "/dashboard/admin" : `/dashboard/${role}`;
           const active =
-            href === `/dashboard/${role}`
+            href === dashRoot
               ? pathname === href
               : pathname.startsWith(href);
 
