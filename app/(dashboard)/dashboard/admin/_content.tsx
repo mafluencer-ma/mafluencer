@@ -38,6 +38,7 @@ type Stats = {
 const ROLE_META: Record<string, { label: string; variant: "primary" | "warning" | "success" | "default" }> = {
   CREATOR: { label: "Creator", variant: "primary"  },
   BRAND:   { label: "Brand",   variant: "warning"  },
+  MANAGER: { label: "Manager", variant: "default"  },
   ADMIN:   { label: "Admin",   variant: "success"  },
 };
 
@@ -129,7 +130,7 @@ export default function AdminOverviewContent() {
             { label: "Total défis",           value: stats.totalChallenges,                                color: "text-slate-200"   },
             { label: "Total missions",         value: stats.totalMissions,                                  color: "text-slate-200"   },
             { label: "Soumissions en attente", value: stats.pendingSubmissions,                             color: "text-amber-400"   },
-            { label: "Admins",                 value: stats.admins,                                         color: "text-emerald-400" },
+            { label: "Admins + Managers",        value: stats.admins,                                         color: "text-emerald-400" },
             { label: "Revenus plateforme",     value: `${(stats.totalRevenue / 1000).toFixed(1)}k MAD`,     color: "text-pink-400"    },
           ].map(({ label, value, color }) => (
             <div key={label} className="glass rounded-[14px] p-4 flex items-center justify-between">
@@ -175,7 +176,7 @@ export default function AdminOverviewContent() {
                   data={[
                     { name: "Creators", value: stats.creators },
                     { name: "Brands",   value: stats.brands },
-                    { name: "Admins",   value: stats.admins },
+                    { name: "Admins+Mgrs", value: stats.admins },
                   ]}
                   margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
                 >
@@ -190,7 +191,7 @@ export default function AdminOverviewContent() {
                 {[
                   { name: "Creators", value: stats.creators, color: "#6366F1" },
                   { name: "Brands",   value: stats.brands,   color: "#EC4899" },
-                  { name: "Admins",   value: stats.admins,   color: "#10B981" },
+                  { name: "Admins+Mgrs", value: stats.admins,   color: "#10B981" },
                 ].map(({ name, value, color }) => (
                   <div key={name} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">

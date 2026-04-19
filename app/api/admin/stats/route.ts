@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     prisma.user.count(),
     prisma.user.count({ where: { role: "CREATOR" } }),
     prisma.user.count({ where: { role: "BRAND" } }),
-    prisma.user.count({ where: { role: "ADMIN" } }),
+    prisma.user.count({ where: { role: { in: ["ADMIN", "MANAGER"] } } }),
     prisma.challenge.count(),
     prisma.challenge.count({ where: { status: "ACTIVE" } }),
     prisma.mission.count(),

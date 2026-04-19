@@ -23,9 +23,14 @@ export async function PATCH(
   const parsed = AdminUpdateUserSchema.safeParse(body);
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Données invalides");
 
-  // Protect: cannot ban or demote another admin
-  if (user.role === "ADMIN" && parsed.data.role && parsed.data.role !== "ADMIN") {
-    return err("Impossible de déclasser un admin");
+  // Protect: cannot demote ADMIN or MANAGER to a lower role
+  if (
+    (user.role === "ADMIN" || user.role === "MANAGER") &&
+    parsed.data.role &&
+    parsed.data.role !== "ADMIN" &&
+    parsed.data.role !== "MANAGER"
+  ) {
+    return err("Impossible de déclasser un admin ou manager");
   }
 
   const updated = await prisma.user.update({
