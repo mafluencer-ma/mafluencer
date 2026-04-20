@@ -12,6 +12,7 @@ import StatCard from "@/components/dashboard/stat-card";
 import ScoreRing from "@/components/ui/score-ring";
 import Badge from "@/components/ui/badge";
 import CountdownTimer from "@/components/dashboard/countdown-timer";
+import CreatorOnboardingModal from "@/components/creator-onboarding-modal";
 import { cn, formatMAD, getLevelGradient, getScoreLevel, formatNumber } from "@/lib/utils";
 
 type ActiveChallenge = {
@@ -39,12 +40,13 @@ type OverviewData = {
   activeChallenge:     ActiveChallenge | null;
   recentMissions:      RecentMission[];
   // profile fields for onboarding
-  hasBio:      boolean;
-  hasNiches:   boolean;
-  hasCity:     boolean;
-  hasSocial:   boolean;
-  hasPrice:    boolean;
-  isVerified:  boolean;
+  hasBio:               boolean;
+  hasNiches:            boolean;
+  hasCity:              boolean;
+  hasSocial:            boolean;
+  hasPrice:             boolean;
+  isVerified:           boolean;
+  onboardingCompleted:  boolean;
 };
 
 const MISSION_STATUS_LABELS: Record<string, { label: string; variant: "success" | "warning" | "primary" | "default" }> = {
@@ -62,8 +64,9 @@ const MISSION_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function CreatorOverviewContent({ session }: { session: Session }) {
-  const [data, setData]       = useState<OverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData]               = useState<OverviewData | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const firstName = session.user?.name?.split(" ")[0] ?? "Creator";
 
   useEffect(() => {
@@ -114,12 +117,13 @@ export default function CreatorOverviewContent({ session }: { session: Session }
           pendingMissions,
           activeChallenge,
           recentMissions,
-          hasBio:     !!(profile?.bio?.trim()),
-          hasNiches:  (profile?.niches?.length ?? 0) > 0,
-          hasCity:    !!(profile?.city?.trim()),
-          hasSocial:  !!(profile?.tiktokHandle || profile?.instagramHandle),
-          hasPrice:   !!(profile?.pricePerPost),
-          isVerified: profile?.verified ?? false,
+          hasBio:              !!(profile?.bio?.trim()),
+          hasNiches:           (profile?.niches?.length ?? 0) > 0,
+          hasCity:             !!(profile?.city?.trim()),
+          hasSocial:           !!(profile?.tiktokHandle || profile?.instagramHandle),
+          hasPrice:            !!(profile?.pricePerPost),
+          isVerified:          profile?.verified ?? false,
+          onboardingCompleted: profile?.onboardingCompleted ?? false,
         });
       } catch (e) {
         console.error(e);
@@ -129,6 +133,13 @@ export default function CreatorOverviewContent({ session }: { session: Session }
     }
     load();
   }, []);
+
+  // Show onboarding modal for new creators who haven't completed it
+  useEffect(() => {
+    if (!loading && data && !data.onboardingCompleted) {
+      setShowOnboarding(true);
+    }
+  }, [loading, data]);
 
   const score    = data?.score ?? 0;
   const level    = data?.level ?? getScoreLevel(score);
@@ -193,6 +204,15 @@ export default function CreatorOverviewContent({ session }: { session: Session }
   }
 
   return (
+    <>
+    {showOnboarding && (
+      <CreatorOnboardingModal
+        onComplete={() => {
+          setShowOnboarding(false);
+          if (data) setData({ ...data, onboardingCompleted: true });
+        }}
+      />
+    )}
     <div className="space-y-6 max-w-6xl">
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
@@ -518,5 +538,6 @@ export default function CreatorOverviewContent({ session }: { session: Session }
         </Link>
       </div>
     </div>
+    </>
   );
 }
