@@ -8,6 +8,7 @@ import {
 import {
   Users, Briefcase, Building2, Flame,
   TrendingUp, ShieldCheck, AlertCircle, ArrowRight, RefreshCw,
+  UserPlus, Clock,
 } from "lucide-react";
 import Link from "next/link";
 import Badge from "@/components/ui/badge";
@@ -104,14 +105,69 @@ export default function AdminOverviewContent() {
         </div>
       )}
 
-      {/* KPI cards */}
+      {/* ── Quick actions ── */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          {
+            href:  "/dashboard/admin/users",
+            icon:  UserPlus,
+            label: "Nouveaux inscrits",
+            sub:   loading ? "…" : `${stats?.recentSignups?.length ?? 0} récents`,
+            color: "text-indigo-400",
+            bg:    "bg-indigo-500/15",
+            border:"border-indigo-500/20",
+          },
+          {
+            href:  "/dashboard/admin/challenges",
+            icon:  Clock,
+            label: "Défis en attente",
+            sub:   loading ? "…" : `${stats?.activeChallenges ?? 0} actifs`,
+            color: "text-orange-400",
+            bg:    "bg-orange-500/15",
+            border:"border-orange-500/20",
+          },
+          {
+            href:  "/dashboard/admin/missions",
+            icon:  Briefcase,
+            label: "Toutes les missions",
+            sub:   loading ? "…" : `${stats?.totalMissions ?? 0} au total`,
+            color: "text-pink-400",
+            bg:    "bg-pink-500/15",
+            border:"border-pink-500/20",
+          },
+          {
+            href:  "/dashboard/admin/payments",
+            icon:  Building2,
+            label: "Paiements",
+            sub:   loading ? "…" : `${stats?.pendingSubmissions ?? 0} en attente`,
+            color: "text-emerald-400",
+            bg:    "bg-emerald-500/15",
+            border:"border-emerald-500/20",
+          },
+        ].map(({ href, icon: Icon, label, sub, color, bg, border }) => (
+          <Link key={href} href={href}>
+            <div className={`glass rounded-[14px] p-4 flex items-center gap-3 border ${border} hover:bg-white/5 transition-all group cursor-pointer hover:scale-[1.02]`}>
+              <div className={`w-10 h-10 rounded-[10px] ${bg} flex items-center justify-center flex-shrink-0`}>
+                <Icon size={18} className={color} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">{label}</p>
+                <p className="text-xs text-slate-500">{sub}</p>
+              </div>
+              <ArrowRight size={14} className="text-slate-600 group-hover:text-slate-300 transition-colors flex-shrink-0" />
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total users",       value: stats?.totalUsers        ?? "—", icon: Users,      color: "text-indigo-400",  bg: "bg-indigo-500/10"  },
-          { label: "Creators",          value: stats?.creators          ?? "—", icon: TrendingUp,  color: "text-pink-400",    bg: "bg-pink-500/10"    },
-          { label: "Brands",            value: stats?.brands            ?? "—", icon: Building2,   color: "text-cyan-400",    bg: "bg-cyan-500/10"    },
-          { label: "Défis actifs",      value: stats?.activeChallenges  ?? "—", icon: Flame,       color: "text-orange-400",  bg: "bg-orange-500/10"  },
-          { label: "Soumissions",       value: stats?.totalSubmissions  ?? "—", icon: Briefcase,   color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { label: "Utilisateurs inscrits", value: stats?.totalUsers        ?? "—", icon: Users,      color: "text-indigo-400",  bg: "bg-indigo-500/10"  },
+          { label: "Créateurs",             value: stats?.creators          ?? "—", icon: TrendingUp,  color: "text-pink-400",    bg: "bg-pink-500/10"    },
+          { label: "Marques",               value: stats?.brands            ?? "—", icon: Building2,   color: "text-cyan-400",    bg: "bg-cyan-500/10"    },
+          { label: "Défis actifs",          value: stats?.activeChallenges  ?? "—", icon: Flame,       color: "text-orange-400",  bg: "bg-orange-500/10"  },
+          { label: "Soumissions vidéo",     value: stats?.totalSubmissions  ?? "—", icon: Briefcase,   color: "text-emerald-400", bg: "bg-emerald-500/10" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className={`glass rounded-[18px] p-5 relative overflow-hidden hover:scale-[1.02] transition-transform ${loading ? "animate-pulse" : ""}`}>
             <div className={`absolute top-3 right-3 w-8 h-8 rounded-[8px] ${bg} flex items-center justify-center`}>
@@ -127,10 +183,10 @@ export default function AdminOverviewContent() {
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
-            { label: "Total défis",           value: stats.totalChallenges,                                color: "text-slate-200"   },
-            { label: "Total missions",         value: stats.totalMissions,                                  color: "text-slate-200"   },
-            { label: "Soumissions en attente", value: stats.pendingSubmissions,                             color: "text-amber-400"   },
-            { label: "Admins + Managers",        value: stats.admins,                                         color: "text-emerald-400" },
+            { label: "Tous les défis",         value: stats.totalChallenges,                                color: "text-slate-200"   },
+            { label: "Toutes les missions",    value: stats.totalMissions,                                  color: "text-slate-200"   },
+            { label: "Vidéos en attente",      value: stats.pendingSubmissions,                             color: "text-amber-400"   },
+            { label: "Admins + Managers",      value: stats.admins,                                         color: "text-emerald-400" },
             { label: "Revenus plateforme",     value: `${(stats.totalRevenue / 1000).toFixed(1)}k MAD`,     color: "text-pink-400"    },
           ].map(({ label, value, color }) => (
             <div key={label} className="glass rounded-[14px] p-4 flex items-center justify-between">
@@ -146,8 +202,8 @@ export default function AdminOverviewContent() {
         {/* Placeholder area chart */}
         <div className="lg:col-span-2 glass rounded-[20px] p-6">
           <div className="flex items-center justify-between mb-5">
-            <p className="text-sm font-semibold text-slate-300">Inscriptions cette semaine</p>
-            <Badge variant="primary">{stats?.totalUsers ?? "—"} total</Badge>
+            <p className="text-sm font-semibold text-slate-300">Nouvelles inscriptions</p>
+            <Badge variant="primary">{stats?.totalUsers ?? "—"} au total</Badge>
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={WEEKLY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -214,8 +270,10 @@ export default function AdminOverviewContent() {
         {/* Recent signups feed */}
         <div className="lg:col-span-2 glass rounded-[20px] overflow-hidden">
           <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-300">Dernières inscriptions</p>
-            <Link href="/dashboard/admin/users" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Voir tout</Link>
+            <p className="text-sm font-semibold text-slate-300">Nouveaux inscrits</p>
+            <Link href="/dashboard/admin/users" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
+              Voir tous <ArrowRight size={11} />
+            </Link>
           </div>
           {loading ? (
             <div className="divide-y divide-white/5">
@@ -261,12 +319,12 @@ export default function AdminOverviewContent() {
 
         {/* Quick nav */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-500 px-1 mb-3">Navigation rapide</p>
+          <p className="text-xs font-semibold text-slate-500 px-1 mb-3">Accès rapide</p>
           {[
-            { href: "/dashboard/admin/users",     icon: Users,     label: "Gérer les users",    sub: `${stats?.totalUsers ?? "…"} inscrits`,         color: "text-indigo-400", bg: "bg-indigo-500/10" },
-            { href: "/dashboard/admin/challenges", icon: Flame,     label: "Défis",              sub: `${stats?.activeChallenges ?? "…"} actifs`,      color: "text-orange-400", bg: "bg-orange-500/10" },
-            { href: "/dashboard/admin/missions",   icon: Briefcase, label: "Missions",           sub: `${stats?.totalMissions ?? "…"} au total`,       color: "text-pink-400",   bg: "bg-pink-500/10"   },
-            { href: "/dashboard/admin/payments",   icon: Building2, label: "Paiements",          sub: `${stats?.pendingSubmissions ?? "…"} en attente`, color: "text-emerald-400",bg: "bg-emerald-500/10"},
+            { href: "/dashboard/admin/users",      icon: Users,     label: "Gérer les utilisateurs", sub: `${stats?.totalUsers ?? "…"} inscrits`,          color: "text-indigo-400", bg: "bg-indigo-500/10" },
+            { href: "/dashboard/admin/challenges",  icon: Flame,     label: "Gérer les défis",        sub: `${stats?.activeChallenges ?? "…"} actifs`,       color: "text-orange-400", bg: "bg-orange-500/10" },
+            { href: "/dashboard/admin/missions",    icon: Briefcase, label: "Gérer les missions",     sub: `${stats?.totalMissions ?? "…"} au total`,        color: "text-pink-400",   bg: "bg-pink-500/10"   },
+            { href: "/dashboard/admin/payments",    icon: Building2, label: "Gérer les paiements",    sub: `${stats?.pendingSubmissions ?? "…"} en attente`, color: "text-emerald-400",bg: "bg-emerald-500/10"},
           ].map(({ href, icon: Icon, label, sub, color, bg }) => (
             <Link key={href} href={href}>
               <div className="glass rounded-[14px] p-4 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer group">
