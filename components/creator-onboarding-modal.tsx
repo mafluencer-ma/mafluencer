@@ -1,33 +1,32 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import {
-  CheckCircle, Copy, Check, ArrowRight, Loader2,
-  AlertCircle, X, Users, Sparkles,
+  CheckCircle, ArrowRight, Loader2, AlertCircle,
+  Users, Sparkles, Clock,
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
-import toast from "react-hot-toast";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Platform = "tiktok" | "instagram";
+
+type SelectedPlatforms = { tiktok: boolean; instagram: boolean };
 
 type ProfilePreview = {
   nickname?: string;
   avatar?:   string;
   bio?:      string;
   followers: number;
-  following: number;
   posts:     number;
   handle:    string;
   platform:  Platform;
-  verifyCode: string;
 };
 
-type Step = "platform" | "username" | "verify" | "success";
+type Step = "platform" | "username" | "confirm" | "success";
 
-// ── Icon components ──────────────────────────────────────────────────────────
+// ── Platform icons ─────────────────────────────────────────────────────────────
 
 function TikTokIcon({ className }: { className?: string }) {
   return (
@@ -45,46 +44,85 @@ function InstagramIcon({ className }: { className?: string }) {
   );
 }
 
-// ── Main modal ───────────────────────────────────────────────────────────────
+function PlatformBadge({ platform, size = "md" }: { platform: Platform; size?: "sm" | "md" }) {
+  const sz = size === "sm" ? "w-7 h-7" : "w-10 h-10";
+  const ic = size === "sm" ? "w-3.5 h-3.5" : "w-5 h-5";
+  if (platform === "tiktok") {
+    return (
+      <div className={cn(sz, "rounded-full bg-black flex items-center justify-center flex-shrink-0")}>
+        <TikTokIcon className={cn(ic, "text-white")} />
+      </div>
+    );
+  }
+  return (
+    <div className={cn(sz, "rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center flex-shrink-0")}>
+      <InstagramIcon className={cn(ic, "text-white")} />
+    </div>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function platformLabel(p: Platform) {
+  return p === "tiktok" ? "TikTok" : "Instagram";
+}
+
+// ── Main modal ────────────────────────────────────────────────────────────────
 
 interface CreatorOnboardingModalProps {
   onComplete: () => void;
 }
 
 export default function CreatorOnboardingModal({ onComplete }: CreatorOnboardingModalProps) {
-  const [step,     setStep]     = useState<Step>("platform");
-  const [platform, setPlatform] = useState<Platform>("tiktok");
+  // ── selection (step 1) ──────────────────────────────────────────────────────
+  const [selected, setSelected] = useState<SelectedPlatforms>({ tiktok: true, instagram: true });
+
+  // ── flow state ──────────────────────────────────────────────────────────────
+  const [step,    setStep]    = useState<Step>("platform");
+  const [current, setCurrent] = useState<Platform>("tiktok"); // which platform we're adding now
+  const [done,    setDone]    = useState<Platform[]>([]);      // platforms already confirmed
+
+  // ── form state ──────────────────────────────────────────────────────────────
   const [username, setUsername] = useState("");
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [preview,  setPreview]  = useState<ProfilePreview | null>(null);
-  const [copied,   setCopied]   = useState(false);
   const [skipping, setSkipping] = useState(false);
 
-  // ── Step 1 → 2: choose platform ────────────────────────────────────────────
-  function choosePlatform(p: Platform) {
-    setPlatform(p);
-    setStep("username");
-    setError(null);
+  // ── platforms in order ──────────────────────────────────────────────────────
+  const platformQueue: Platform[] = (["tiktok", "instagram"] as Platform[]).filter(
+    (p) => selected[p]
+  );
+  const totalPlatforms = platformQueue.length;
+  const currentIndex   = platformQueue.indexOf(current) + 1; // 1-based
+
+  // ── Step 1 → 2 ──────────────────────────────────────────────────────────────
+  function startFlow() {
+    if (!selected.tiktok && !selected.instagram) return;
+    const first = selected.tiktok ? "tiktok" : "instagram";
+    setCurrent(first);
     setUsername("");
+    setPreview(null);
+    setError(null);
+    setStep("username");
   }
 
-  // ── Step 2 → 3: fetch profile preview + get verifyCode ─────────────────────
-  async function handleStart() {
+  // ── Step 2: fetch preview ────────────────────────────────────────────────────
+  async function handlePreview() {
     const handle = username.replace("@", "").trim();
     if (!handle) { setError("Saisis ton nom d'utilisateur"); return; }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/social/onboarding?action=start`, {
+      const res = await fetch(`/api/social/onboarding?action=preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, username: handle }),
+        body: JSON.stringify({ platform: current, username: handle }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Erreur serveur"); return; }
-      setPreview({ ...data, handle, platform });
-      setStep("verify");
+      setPreview({ ...data, handle, platform: current });
+      setStep("confirm");
     } catch {
       setError("Connexion impossible. Réessaie.");
     } finally {
@@ -92,20 +130,34 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
     }
   }
 
-  // ── Step 3 → 4: check bio for verifyCode ───────────────────────────────────
-  async function handleVerify() {
+  // ── Step 3: confirm ownership ─────────────────────────────────────────────────
+  async function handleConfirm() {
     if (!preview) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/social/onboarding?action=verify`, {
+      const res = await fetch(`/api/social/onboarding?action=confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform: preview.platform, username: preview.handle }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Erreur serveur"); return; }
-      setStep("success");
+
+      const newDone = [...done, preview.platform];
+      setDone(newDone);
+
+      // Check if there's a next platform to process
+      const nextPlatform = platformQueue.find((p) => !newDone.includes(p));
+      if (nextPlatform) {
+        setCurrent(nextPlatform);
+        setUsername("");
+        setPreview(null);
+        setError(null);
+        setStep("username");
+      } else {
+        setStep("success");
+      }
     } catch {
       setError("Connexion impossible. Réessaie.");
     } finally {
@@ -113,7 +165,7 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
     }
   }
 
-  // ── Skip ────────────────────────────────────────────────────────────────────
+  // ── Skip ──────────────────────────────────────────────────────────────────────
   async function handleSkip() {
     setSkipping(true);
     try {
@@ -122,36 +174,35 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
     onComplete();
   }
 
-  // ── Copy code ───────────────────────────────────────────────────────────────
-  const copyCode = useCallback(() => {
-    if (!preview?.verifyCode) return;
-    navigator.clipboard.writeText(preview.verifyCode).then(() => {
-      setCopied(true);
-      toast.success("Code copié !");
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [preview?.verifyCode]);
+  // ── Progress % ───────────────────────────────────────────────────────────────
+  const progressPct =
+    step === "platform" ? 20 :
+    step === "username" ? (totalPlatforms === 2 ? (currentIndex === 1 ? 40 : 65) : 50) :
+    step === "confirm"  ? (totalPlatforms === 2 ? (currentIndex === 1 ? 55 : 80) : 70) : 100;
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  const stepLabel =
+    step === "platform" ? "Choix des plateformes" :
+    step === "username" ? (totalPlatforms > 1 ? `${platformLabel(current)} (${currentIndex}/${totalPlatforms})` : platformLabel(current)) :
+    step === "confirm"  ? "Confirmation" : "Terminé";
+
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div
-        className="w-full max-w-lg bg-[#0F172A] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
+        className="w-full max-w-lg bg-[#0F172A] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60"
         style={{ maxHeight: "90vh", overflowY: "auto" }}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="px-6 pt-6 pb-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
               <Sparkles size={18} className="text-indigo-400" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h2 className="text-base font-semibold text-slate-100">
                 Connecte tes réseaux sociaux
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Étape {step === "platform" ? 1 : step === "username" ? 2 : step === "verify" ? 3 : 4} / 4
-              </p>
+              <p className="text-xs text-slate-500 mt-0.5 truncate">{stepLabel}</p>
             </div>
           </div>
 
@@ -159,84 +210,130 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
           <div className="mt-4 h-1 bg-white/[0.06] rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 rounded-full transition-all duration-500"
-              style={{
-                width:
-                  step === "platform" ? "25%" :
-                  step === "username" ? "50%" :
-                  step === "verify"   ? "75%" : "100%",
-              }}
+              style={{ width: `${progressPct}%` }}
             />
           </div>
         </div>
 
         <div className="p-6">
 
-          {/* ── STEP 1: Choose platform ── */}
+          {/* ════════════════════════════════════════════
+              STEP 1 — Choose platforms
+          ════════════════════════════════════════════ */}
           {step === "platform" && (
             <div className="space-y-4">
               <p className="text-sm text-slate-400">
-                Choisis ta plateforme principale pour vérifier ton compte créateur.
+                Sélectionne les plateformes à connecter à ton profil Mafluencer.
               </p>
+
+              {/* Recommended shortcut */}
+              <button
+                onClick={() => {
+                  setSelected({ tiktok: true, instagram: true });
+                  startFlow();
+                }}
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-indigo-500/10 border-2 border-indigo-500/40 hover:border-indigo-500/70 hover:bg-indigo-500/15 transition-all duration-200 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    <div className="w-8 h-8 rounded-full bg-black border-2 border-[#0F172A] flex items-center justify-center z-10">
+                      <TikTokIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 border-2 border-[#0F172A] flex items-center justify-center">
+                      <InstagramIcon className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-indigo-200">Les deux</p>
+                    <p className="text-xs text-indigo-400">TikTok + Instagram</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-indigo-500/30 text-indigo-300">
+                  RECOMMANDÉ
+                </span>
+              </button>
+
+              {/* Individual cards */}
               <div className="grid grid-cols-2 gap-3">
-                {/* TikTok */}
-                <button
-                  onClick={() => choosePlatform("tiktok")}
-                  className="relative flex flex-col items-center gap-3 p-5 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.15] transition-all duration-200 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
-                    <TikTokIcon className="text-white" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-200">TikTok</span>
-                </button>
-
-                {/* Instagram */}
-                <button
-                  onClick={() => choosePlatform("instagram")}
-                  className="relative flex flex-col items-center gap-3 p-5 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.15] transition-all duration-200 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
-                    <InstagramIcon className="text-white" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-200">Instagram</span>
-                </button>
+                {([
+                  { p: "tiktok" as Platform, label: "TikTok",    color: "bg-black",                           icon: <TikTokIcon className="w-5 h-5 text-white" />    },
+                  { p: "instagram" as Platform, label: "Instagram", color: "bg-gradient-to-br from-purple-600 to-pink-500", icon: <InstagramIcon className="w-5 h-5 text-white" /> },
+                ]).map(({ p, label, color, icon }) => {
+                  const active = selected[p];
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        const next = { ...selected, [p]: !selected[p] };
+                        setSelected(next);
+                      }}
+                      className={cn(
+                        "relative flex flex-col items-center gap-3 p-5 rounded-xl border transition-all duration-200",
+                        active
+                          ? "border-indigo-500/50 bg-indigo-500/10"
+                          : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.15]"
+                      )}
+                    >
+                      {/* Checkmark */}
+                      <div className={cn(
+                        "absolute top-2.5 right-2.5 w-4 h-4 rounded-full border flex items-center justify-center transition-all",
+                        active ? "border-indigo-400 bg-indigo-500" : "border-white/20 bg-transparent"
+                      )}>
+                        {active && <CheckCircle size={10} className="text-white" strokeWidth={3} />}
+                      </div>
+                      <div className={cn("w-11 h-11 rounded-full flex items-center justify-center", color)}>
+                        {icon}
+                      </div>
+                      <span className={cn("text-sm font-medium", active ? "text-indigo-200" : "text-slate-300")}>
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Recommended note */}
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                <Sparkles size={14} className="text-indigo-400 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-indigo-300 leading-relaxed">
-                  Connecte TikTok <strong>et</strong> Instagram depuis ton profil créateur après la vérification pour maximiser tes opportunités.
-                </p>
-              </div>
+              {/* CTA */}
+              <button
+                onClick={startFlow}
+                disabled={!selected.tiktok && !selected.instagram}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-sm font-semibold hover:from-indigo-600 hover:to-pink-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] shadow-lg shadow-indigo-500/20"
+              >
+                <ArrowRight size={16} />
+                Continuer
+              </button>
             </div>
           )}
 
-          {/* ── STEP 2: Enter username ── */}
+          {/* ════════════════════════════════════════════
+              STEP 2 — Enter username
+          ════════════════════════════════════════════ */}
           {step === "username" && (
             <div className="space-y-5">
+              {/* Platform indicator + progress pills */}
               <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center",
-                  platform === "tiktok"
-                    ? "bg-black/60"
-                    : "bg-gradient-to-br from-purple-600 to-pink-500"
-                )}>
-                  {platform === "tiktok"
-                    ? <TikTokIcon className="text-white w-4 h-4" />
-                    : <InstagramIcon className="text-white w-4 h-4" />}
-                </div>
-                <span className="text-sm font-medium text-slate-200 capitalize">{platform}</span>
-                <button
-                  onClick={() => { setStep("platform"); setError(null); }}
-                  className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  Changer
-                </button>
+                <PlatformBadge platform={current} size="sm" />
+                <span className="text-sm font-medium text-slate-200">{platformLabel(current)}</span>
+                {totalPlatforms > 1 && (
+                  <div className="ml-auto flex gap-1.5">
+                    {platformQueue.map((p, i) => (
+                      <div
+                        key={p}
+                        className={cn(
+                          "h-1.5 rounded-full transition-all",
+                          done.includes(p)      ? "w-5 bg-emerald-500" :
+                          p === current         ? "w-5 bg-indigo-400"  :
+                          "w-3 bg-white/[0.15]",
+                          i === 0 && ""
+                        )}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Ton nom d&apos;utilisateur {platform === "tiktok" ? "TikTok" : "Instagram"}
+                  Ton nom d&apos;utilisateur {platformLabel(current)}
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm select-none">@</span>
@@ -244,14 +341,14 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                     type="text"
                     value={username}
                     onChange={e => { setUsername(e.target.value); setError(null); }}
-                    onKeyDown={e => e.key === "Enter" && handleStart()}
-                    placeholder={platform === "tiktok" ? "tonpseudo" : "tonpseudo"}
+                    onKeyDown={e => e.key === "Enter" && handlePreview()}
+                    placeholder="tonpseudo"
                     className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[12px] pl-8 pr-4 py-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                     autoFocus
                   />
                 </div>
                 <p className="text-xs text-slate-600 mt-1.5">
-                  Exemple : @{platform === "tiktok" ? "khalid.create" : "khalid.create"}
+                  Exemple : @khalid.creator (sans le @)
                 </p>
               </div>
 
@@ -263,166 +360,163 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
               )}
 
               <button
-                onClick={handleStart}
+                onClick={handlePreview}
                 disabled={loading || !username.trim()}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-sm font-semibold hover:from-indigo-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] shadow-lg shadow-indigo-500/20"
               >
-                {loading ? (
-                  <><Loader2 size={16} className="animate-spin" /> Recherche en cours…</>
-                ) : (
-                  <><ArrowRight size={16} /> Continuer</>
-                )}
+                {loading
+                  ? <><Loader2 size={16} className="animate-spin" /> Recherche en cours…</>
+                  : <><ArrowRight size={16} /> Rechercher</>
+                }
+              </button>
+
+              <button
+                onClick={() => { setStep("platform"); setError(null); setUsername(""); setPreview(null); }}
+                className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
+              >
+                ← Changer de plateforme
               </button>
             </div>
           )}
 
-          {/* ── STEP 3: Verify ownership ── */}
-          {step === "verify" && preview && (
+          {/* ════════════════════════════════════════════
+              STEP 3 — Confirm profile
+          ════════════════════════════════════════════ */}
+          {step === "confirm" && preview && (
             <div className="space-y-5">
-              {/* Profile preview */}
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                <div className="w-14 h-14 rounded-full overflow-hidden bg-slate-700 flex-shrink-0">
-                  {preview.avatar ? (
-                    <Image
-                      src={preview.avatar}
-                      alt={preview.nickname ?? preview.handle}
-                      width={56}
-                      height={56}
-                      className="w-full h-full object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
-                      {(preview.nickname ?? preview.handle)[0]?.toUpperCase()}
+              <p className="text-sm text-slate-400">
+                Nous avons trouvé ce profil. Est-ce bien ton compte ?
+              </p>
+
+              {/* Profile card */}
+              <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-3">
+                <div className="flex items-center gap-4">
+                  {/* Avatar */}
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 ring-2 ring-white/[0.06]">
+                    {preview.avatar ? (
+                      <Image
+                        src={preview.avatar}
+                        alt={preview.nickname ?? preview.handle}
+                        width={64}
+                        height={64}
+                        className="w-full h-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl">
+                        {(preview.nickname ?? preview.handle)[0]?.toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <PlatformBadge platform={preview.platform} size="sm" />
+                      <p className="text-base font-bold text-slate-100 truncate">
+                        {preview.nickname ?? `@${preview.handle}`}
+                      </p>
                     </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-100 truncate">
-                    {preview.nickname ?? `@${preview.handle}`}
-                  </p>
-                  <p className="text-xs text-slate-500 truncate">@{preview.handle}</p>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <span className="flex items-center gap-1 text-xs text-slate-400">
-                      <Users size={11} />
-                      {formatNumber(preview.followers)} abonnés
-                    </span>
+                    <p className="text-sm text-slate-500 mt-0.5">@{preview.handle}</p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <Users size={12} className="text-indigo-400" />
+                        <span className="font-semibold text-slate-200">{formatNumber(preview.followers)}</span>
+                        <span>abonnés</span>
+                      </span>
+                      {preview.posts > 0 && (
+                        <span className="text-xs text-slate-500">
+                          {formatNumber(preview.posts)} publications
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
+
+                {/* Bio */}
+                {preview.bio && (
+                  <p className="text-xs text-slate-500 border-t border-white/[0.05] pt-3 leading-relaxed line-clamp-2">
+                    {preview.bio}
+                  </p>
+                )}
               </div>
 
-              {/* Verify code */}
-              <div>
-                <p className="text-sm font-medium text-slate-300 mb-3">
-                  Prouve que tu es le propriétaire de ce compte :
-                </p>
-
-                {/* Step instructions */}
-                <ol className="space-y-2 mb-4">
-                  {[
-                    `Ouvre l'appli ${preview.platform === "tiktok" ? "TikTok" : "Instagram"}`,
-                    "Va dans ton profil → Modifier le profil → Bio",
-                    "Colle ce code dans ta bio :",
-                  ].map((text, i) => (
-                    <li key={i} className="flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-semibold">
-                        {i + 1}
-                      </span>
-                      <span className="text-xs text-slate-400 leading-relaxed">{text}</span>
-                    </li>
-                  ))}
-                </ol>
-
-                {/* Code box */}
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
-                  <span className="flex-1 text-center font-mono font-bold text-2xl tracking-widest text-indigo-300 select-all">
-                    {preview.verifyCode}
-                  </span>
-                  <button
-                    onClick={copyCode}
-                    className="p-2 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 transition-all"
-                    title="Copier le code"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
-                </div>
-
-                <p className="text-xs text-slate-600 mt-2 text-center">
-                  Code valable 30 minutes · Tu pourras le retirer après vérification
+              {/* Admin review note */}
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <Clock size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-300 leading-relaxed">
+                  Ton compte sera examiné par notre équipe dans les <strong>24h</strong>. Tu recevras une notification une fois vérifié.
                 </p>
               </div>
 
               {error && (
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-                  <AlertCircle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-300 leading-relaxed">{error}</p>
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+                  <p className="text-xs text-red-300">{error}</p>
                 </div>
               )}
 
-              <button
-                onClick={handleVerify}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-sm font-semibold hover:from-indigo-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] shadow-lg shadow-indigo-500/20"
-              >
-                {loading ? (
-                  <><Loader2 size={16} className="animate-spin" /> Vérification en cours…</>
-                ) : (
-                  <><CheckCircle size={16} /> J&apos;ai ajouté le code — Vérifier maintenant</>
-                )}
-              </button>
-
-              <button
-                onClick={() => { setStep("username"); setError(null); }}
-                className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
-              >
-                ← Changer de compte
-              </button>
+              {/* Yes / No buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => { setStep("username"); setPreview(null); setError(null); setUsername(""); }}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] text-sm font-medium text-slate-300 transition-all duration-200"
+                >
+                  Non, changer
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-sm font-semibold hover:from-indigo-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] shadow-lg shadow-indigo-500/20"
+                >
+                  {loading
+                    ? <><Loader2 size={15} className="animate-spin" /> En cours…</>
+                    : <><CheckCircle size={15} /> Oui, c&apos;est moi</>
+                  }
+                </button>
+              </div>
             </div>
           )}
 
-          {/* ── STEP 4: Success ── */}
-          {step === "success" && preview && (
+          {/* ════════════════════════════════════════════
+              STEP 4 — Success
+          ════════════════════════════════════════════ */}
+          {step === "success" && (
             <div className="space-y-5 text-center">
-              {/* Animated badge */}
+              {/* Badge */}
               <div className="flex justify-center">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/20 to-indigo-500/20 border border-emerald-500/30 flex items-center justify-center animate-pulse">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/20 to-indigo-500/20 border-2 border-emerald-500/40 flex items-center justify-center">
                   <CheckCircle size={36} className="text-emerald-400" />
                 </div>
               </div>
 
               <div>
                 <h3 className="text-lg font-bold text-slate-100 mb-1">
-                  Compte vérifié ! 🎉
+                  Compte{done.length > 1 ? "s" : ""} soumis pour vérification !
                 </h3>
                 <p className="text-sm text-slate-400">
-                  Ton compte {preview.platform === "tiktok" ? "TikTok" : "Instagram"}{" "}
-                  <span className="font-semibold text-slate-200">@{preview.handle}</span> est maintenant lié à ton profil Mafluencer.
+                  Notre équipe va vérifier {done.length > 1 ? "tes comptes" : "ton compte"} dans les prochaines 24h.
                 </p>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-slate-100">{formatNumber(preview.followers)}</p>
-                  <p className="text-xs text-slate-500">Abonnés</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-slate-100">{formatNumber(preview.posts)}</p>
-                  <p className="text-xs text-slate-500">Publications</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <CheckCircle size={14} className="text-emerald-400" />
-                    <p className="text-sm font-bold text-emerald-400">Vérifié</p>
+              {/* Connected platforms */}
+              <div className="space-y-2">
+                {done.map((p) => (
+                  <div
+                    key={p}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"
+                  >
+                    <PlatformBadge platform={p} size="sm" />
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-slate-200">{platformLabel(p)}</p>
+                      <p className="text-xs text-slate-500">En attente de vérification</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                      <Clock size={10} />
+                      <span>24h</span>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500">Statut</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
-                <X size={12} className="text-slate-600" />
-                <span>Tu peux retirer le code de ta bio maintenant</span>
+                ))}
               </div>
 
               <button
@@ -437,7 +531,7 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
 
         </div>
 
-        {/* Footer — skip link (visible on steps 1, 2, 3 only) */}
+        {/* Footer — skip */}
         {step !== "success" && (
           <div className="px-6 pb-5 text-center">
             <button

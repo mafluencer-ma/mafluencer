@@ -4,7 +4,7 @@ import { ok, err, withRateLimit, requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
-// ── Shared ScrapeCreators helper ────────────────────────────────────────────
+// ── ScrapeCreators helper ────────────────────────────────────────────────────
 
 type ProfileData = {
   followers: number;
@@ -33,7 +33,7 @@ async function fetchProfile(
       if (!stats && !info?.followerCount) return { error: "Compte TikTok introuvable ou privé" };
       return {
         data: {
-          followers: stats?.followerCount ?? info?.followerCount ?? 0,
+          followers: stats?.followerCount  ?? info?.followerCount  ?? 0,
           following: stats?.followingCount ?? info?.followingCount ?? 0,
           posts:     stats?.videoCount     ?? info?.videoCount     ?? 0,
           nickname:  info?.nickname        ?? info?.displayName,
@@ -66,23 +66,20 @@ async function fetchProfile(
   }
 }
 
-function generateVerifyCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "MAF-";
-  for (let i = 0; i < 4; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
-
-// ── POST /api/social/onboarding?action=start ────────────────────────────────
-// Fetches profile preview + generates a verifyCode saved to DB
+// ── Actions ──────────────────────────────────────────────────────────────────
 //
-// ── POST /api/social/onboarding?action=verify ───────────────────────────────
-// Re-fetches profile, checks bio contains verifyCode, marks verified
+// POST /api/social/onboarding?action=preview
+//   body: { platform, username }
+//   → fetch profile from ScrapeCreators, return preview (no DB writes)
 //
-// ── POST /api/social/onboarding?action=skip ─────────────────────────────────
-// Sets onboardingCompleted=true without social verification
+// POST /api/social/onboarding?action=confirm
+//   body: { platform, username }
+//   → save handle + followers, set verified=false (pending admin review)
+//   → set onboardingCompleted=true
+//   → create admin Notification
+//
+// POST /api/social/onboarding?action=skip
+//   → set onboardingCompleted=true, no social linking
 
 export async function POST(req: NextRequest) {
   const limited = await withRateLimit(req);
@@ -91,7 +88,7 @@ export async function POST(req: NextRequest) {
   const { user, error } = await requireAuth();
   if (error) return error;
 
-  const action = req.nextUrl.searchParams.get("action") ?? "start";
+  const action = req.nextUrl.searchParams.get("action") ?? "preview";
 
   // ── SKIP ────────────────────────────────────────────────────────────────────
   if (action === "skip") {
@@ -113,49 +110,23 @@ export async function POST(req: NextRequest) {
 
   const handle = username.replace("@", "").trim().toLowerCase();
 
-  // ── START ───────────────────────────────────────────────────────────────────
-  if (action === "start") {
+  // ── PREVIEW ─────────────────────────────────────────────────────────────────
+  if (action === "preview") {
     const result = await fetchProfile(platform, handle, apiKey);
     if ("error" in result) return err(result.error);
-
-    const verifyCode   = generateVerifyCode();
-    const expiry       = new Date(Date.now() + 30 * 60 * 1000); // +30 min
-
-    await prisma.creatorProfile.update({
-      where: { userId: user.id },
-      data:  { verifyCode, verifyCodeExpiry: expiry },
-    });
-
-    return ok({ ...result.data, platform, handle, verifyCode });
+    return ok({ ...result.data, platform, handle });
   }
 
-  // ── VERIFY ──────────────────────────────────────────────────────────────────
-  if (action === "verify") {
-    const profile = await prisma.creatorProfile.findUnique({
-      where: { userId: user.id },
-      select: { verifyCode: true, verifyCodeExpiry: true },
-    });
-
-    if (!profile?.verifyCode) return err("Aucun code de vérification en attente");
-    if (!profile.verifyCodeExpiry || profile.verifyCodeExpiry < new Date()) {
-      return err("Le code a expiré. Recommence depuis le début.");
-    }
-
+  // ── CONFIRM ─────────────────────────────────────────────────────────────────
+  if (action === "confirm") {
+    // Fetch latest profile data to store
     const result = await fetchProfile(platform, handle, apiKey);
     if ("error" in result) return err(result.error);
 
-    const bioText = (result.data.bio ?? "").toLowerCase();
-    if (!bioText.includes(profile.verifyCode.toLowerCase())) {
-      return err(`Code ${profile.verifyCode} non trouvé dans ta bio. Réessaie.`);
-    }
-
-    // ✅ Verification passed — save everything
     const updateData: Record<string, unknown> = {
-      verified:           true,
-      followersCount:     result.data.followers,
+      followersCount:      result.data.followers,
       onboardingCompleted: true,
-      verifyCode:          null,
-      verifyCodeExpiry:    null,
+      // verified stays false — pending admin approval
     };
     if (platform === "tiktok") {
       updateData.tiktokHandle = handle;
@@ -168,7 +139,25 @@ export async function POST(req: NextRequest) {
       data:  updateData,
     });
 
-    return ok({ ...result.data, platform, handle, verified: true });
+    // Notify all admins/managers
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ["ADMIN", "MANAGER"] } },
+      select: { id: true },
+    });
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map((a) => ({
+          userId:  a.id,
+          type:    "CREATOR_VERIFY_REQUEST",
+          title:   "Nouveau creator à vérifier",
+          message: `@${handle} (${platform}) demande une vérification de compte. ${result.data.followers.toLocaleString("fr")} abonnés.`,
+          link:    "/dashboard/admin/users",
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return ok({ ...result.data, platform, handle, pendingVerification: true });
   }
 
   return err("Action invalide");
