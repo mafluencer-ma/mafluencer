@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function AdminMissionsPage() {
   const session = await auth();
   const role = (session?.user as { role?: string })?.role;
-  if (!session || role !== "ADMIN") redirect("/auth/signin");
+  if (!session || (role !== "ADMIN" && role !== "MANAGER")) redirect("/auth/signin");
   return (
     <Suspense fallback={<div className="max-w-6xl space-y-4"><ListSkeleton rows={8} /></div>}>
       <AdminMissionsContent />

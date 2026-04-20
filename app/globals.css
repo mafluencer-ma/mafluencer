@@ -304,5 +304,51 @@ html.light .animate-pulse .bg-slate-700\/40 { background-color: #E2E8F0; }
 html.light .from-white\/\[0\.02\]  { --tw-gradient-from: rgba(0,0,0,0.01); }
 html.light .to-transparent         { --tw-gradient-to:   transparent; }
 
+/* ── Hex-color card/surface backgrounds (any opacity variant) ── */
+/* Covers bg-[#1E293B], bg-[#1E293B]/60, bg-[#1E293B]/50, bg-[#1E293B]/80, etc. */
+html.light [class*="bg-[#1E293B]"] { background-color: #FFFFFF; }
+/* Covers bg-[#0F172A], bg-[#0F172A]/60, bg-[#0F172A]/90, etc. */
+html.light [class*="bg-[#0F172A]"] { background-color: #F1F5F9; }
+
+/* bg-black/* used in signin social buttons */
+html.light .bg-black\/60 { background-color: rgba(0,0,0,0.06) !important; }
+html.light .hover\:bg-black\/80:hover { background-color: rgba(0,0,0,0.10) !important; }
+
+/* ── Static (non-hover) white/x backgrounds ── */
+html.light .bg-white\/\[0\.01\]  { background-color: rgba(0,0,0,0.01); }
+html.light .bg-white\/\[0\.02\]  { background-color: rgba(0,0,0,0.015); }
+html.light .bg-white\/\[0\.05\]  { background-color: rgba(0,0,0,0.04); }
+html.light .bg-white\/\[0\.06\]  { background-color: rgba(0,0,0,0.05); }
+html.light .bg-white\/\[0\.08\]  { background-color: rgba(0,0,0,0.06); }
+html.light .bg-white\/\[0\.1\]   { background-color: rgba(0,0,0,0.07); }
+html.light .bg-white\/\[0\.12\]  { background-color: rgba(0,0,0,0.09); }
+html.light .bg-white\/5          { background-color: rgba(0,0,0,0.04); }
+html.light .bg-white\/8          { background-color: rgba(0,0,0,0.06); }
+html.light .bg-white\/10         { background-color: rgba(0,0,0,0.08); }
+html.light .bg-white\/20         { background-color: rgba(0,0,0,0.12); }
+
+/* ── Slate border variants ── */
+html.light .border-slate-600\/40 { border-color: rgba(0,0,0,0.10); }
+html.light .border-slate-500\/30 { border-color: rgba(0,0,0,0.08); }
+html.light .bg-slate-500\/20     { background-color: rgba(0,0,0,0.06); }
+
+/* ── Missing border overrides ── */
+html.light .border-white\/\[0\.1\]  { border-color: rgba(0,0,0,0.08); }
+html.light .border-white\/\[0\.12\] { border-color: rgba(0,0,0,0.09); }
+html.light .border-white\/\[0\.14\] { border-color: rgba(0,0,0,0.10); }
+html.light .border-white\/\[0\.15\] { border-color: rgba(0,0,0,0.11); }
+html.light .border-white\/\[0\.18\] { border-color: rgba(0,0,0,0.13); }
+html.light .border-white\/10        { border-color: rgba(0,0,0,0.08); }
+
+/* ── Hover border overrides ── */
+html.light .hover\:border-white\/\[0\.1\]:hover  { border-color: rgba(0,0,0,0.08); }
+html.light .hover\:border-white\/\[0\.12\]:hover { border-color: rgba(0,0,0,0.09); }
+html.light .hover\:border-white\/\[0\.14\]:hover { border-color: rgba(0,0,0,0.10); }
+html.light .hover\:border-white\/\[0\.15\]:hover { border-color: rgba(0,0,0,0.11); }
+html.light .hover\:border-white\/\[0\.18\]:hover { border-color: rgba(0,0,0,0.13); }
+
+/* ── Hover bg for hex-color elements ── */
+html.light [class*="hover:bg-[#1E293B]"]:hover { background-color: rgba(0,0,0,0.04); }
+
 /* ── Focus rings ── */
 html.light *:focus-visible { outline-color: #6366F1; }
