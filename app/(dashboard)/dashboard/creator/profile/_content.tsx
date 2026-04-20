@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, MapPin, Tag, Link2, DollarSign, Camera, CheckCircle, X } from "lucide-react";
+import { User, MapPin, Tag, Link2, DollarSign, Camera, CheckCircle, X, BadgeCheck, Loader2, Users, Film } from "lucide-react";
 import type { Session } from "next-auth";
 import Button from "@/components/ui/button";
 import Badge from "@/components/ui/badge";
 import Avatar from "@/components/ui/avatar";
 import PageHeader from "@/components/dashboard/page-header";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 const CITIES = ["Casablanca", "Rabat", "Marrakech", "Tanger", "Fès", "Agadir", "Meknès", "Oujda", "Autre"];
@@ -18,14 +18,30 @@ type FormData = {
   niches: string[]; pricePerPost: string; pricePerStory: string; pricePerVideo: string;
 };
 
+type VerifyResult = {
+  followers: number;
+  following: number;
+  posts:     number;
+  nickname?: string;
+};
+
+type PlatformVerifyState = {
+  status: "idle" | "loading" | "success" | "error";
+  data?:  VerifyResult;
+  error?: string;
+};
+
 export default function ProfileFormContent({ session }: { session: Session }) {
   const [form, setForm] = useState<FormData>({
     bio: "", city: "", tiktokHandle: "", instagramHandle: "",
     niches: [], pricePerPost: "", pricePerStory: "", pricePerVideo: "",
   });
-  const [profileLoaded, setProfileLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
+  const [profileLoaded,  setProfileLoaded]  = useState(false);
+  const [saving,         setSaving]         = useState(false);
+  const [saved,          setSaved]          = useState(false);
+  const [profileVerified, setProfileVerified] = useState(false);
+  const [tiktokVerify,   setTiktokVerify]   = useState<PlatformVerifyState>({ status: "idle" });
+  const [igVerify,       setIgVerify]       = useState<PlatformVerifyState>({ status: "idle" });
 
   // Load current profile
   useEffect(() => {
@@ -45,6 +61,13 @@ export default function ProfileFormContent({ session }: { session: Session }) {
             pricePerStory:   p.pricePerStory    != null ? String(p.pricePerStory) : "",
             pricePerVideo:   p.pricePerVideo    != null ? String(p.pricePerVideo) : "",
           });
+          setProfileVerified(p.verified ?? false);
+          // If already verified, show existing follower count as success state
+          if (p.verified && p.followersCount > 0) {
+            const successData = { followers: p.followersCount, following: 0, posts: 0 };
+            if (p.tiktokHandle)    setTiktokVerify({ status: "success", data: successData });
+            if (p.instagramHandle) setIgVerify({ status: "success", data: successData });
+          }
         }
       } catch (e) {
         console.error(e);
@@ -99,8 +122,40 @@ export default function ProfileFormContent({ session }: { session: Session }) {
     }
   }
 
+  async function handleVerify(platform: "tiktok" | "instagram") {
+    const username = platform === "tiktok" ? form.tiktokHandle : form.instagramHandle;
+    if (!username?.trim()) {
+      toast.error(`Entre ton nom d'utilisateur ${platform === "tiktok" ? "TikTok" : "Instagram"}`);
+      return;
+    }
+    const setState = platform === "tiktok" ? setTiktokVerify : setIgVerify;
+    setState({ status: "loading" });
+    try {
+      const res  = await fetch("/api/social/verify", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ platform, username: username.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setState({ status: "error", error: data.error ?? "Erreur" });
+        toast.error(data.error ?? "Vérification échouée");
+        return;
+      }
+      setState({ status: "success", data: { followers: data.followers, following: data.following, posts: data.posts, nickname: data.nickname } });
+      setProfileVerified(true);
+      // Update handle in form from API (normalised)
+      if (platform === "tiktok") setForm(f => ({ ...f, tiktokHandle: data.handle }));
+      else                       setForm(f => ({ ...f, instagramHandle: data.handle }));
+      toast.success(`Compte ${platform === "tiktok" ? "TikTok" : "Instagram"} vérifié !`);
+    } catch {
+      setState({ status: "error", error: "Erreur réseau" });
+      toast.error("Erreur réseau");
+    }
+  }
+
   // Completion score (simple)
-  const completionFields = [form.bio, form.city, form.niches.length > 0, form.tiktokHandle || form.instagramHandle, form.pricePerPost];
+  const completionFields = [form.bio, form.city, form.niches.length > 0, form.tiktokHandle || form.instagramHandle, form.pricePerPost, profileVerified];
   const completionPct = Math.round((completionFields.filter(Boolean).length / completionFields.length) * 100);
 
   const SECTIONS = [
@@ -201,24 +256,88 @@ export default function ProfileFormContent({ session }: { session: Session }) {
       title: "Réseaux sociaux",
       icon: Link2,
       content: (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {[
-            { key: "tiktokHandle" as const, label: "TikTok", emoji: "🎵" },
-            { key: "instagramHandle" as const, label: "Instagram", emoji: "📸" },
-          ].map(({ key, label, emoji }) => (
-            <div key={key} className="space-y-1.5">
+        <div className="space-y-5">
+          <p className="text-xs text-slate-600">Vérifie tes comptes pour obtenir le badge ✓ et afficher tes vraies stats sur ton profil.</p>
+          {(
+            [
+              { key: "tiktokHandle" as const, platform: "tiktok" as const, label: "TikTok", emoji: "🎵", verifyState: tiktokVerify },
+              { key: "instagramHandle" as const, platform: "instagram" as const, label: "Instagram", emoji: "📸", verifyState: igVerify },
+            ] as const
+          ).map(({ key, platform, label, emoji, verifyState }) => (
+            <div key={key} className="space-y-2">
               <label className="block text-sm font-medium text-slate-300 flex items-center gap-1.5">
                 <span className="text-base">{emoji}</span> {label}
+                {verifyState.status === "success" && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[11px] font-semibold">
+                    <BadgeCheck size={11} /> Vérifié
+                  </span>
+                )}
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">@</span>
-                <input
-                  value={form[key]}
-                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value.replace("@", "") }))}
-                  placeholder="toncompte"
-                  className="w-full bg-slate-800/60 border border-white/[0.08] rounded-[12px] pl-8 pr-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">@</span>
+                  <input
+                    value={form[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value.replace("@", "") }))}
+                    placeholder="toncompte"
+                    className={cn(
+                      "w-full bg-slate-800/60 border rounded-[12px] pl-8 pr-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-all",
+                      verifyState.status === "success"
+                        ? "border-emerald-500/30 focus:border-emerald-500/50 focus:ring-emerald-500/20"
+                        : verifyState.status === "error"
+                          ? "border-red-500/30 focus:border-red-500/50 focus:ring-red-500/20"
+                          : "border-white/[0.08] focus:border-indigo-500/50 focus:ring-indigo-500/20"
+                    )}
+                  />
+                </div>
+                <button
+                  onClick={() => handleVerify(platform)}
+                  disabled={verifyState.status === "loading" || !form[key]?.trim()}
+                  className={cn(
+                    "px-4 py-3 rounded-[12px] text-sm font-medium transition-all flex items-center gap-1.5 flex-shrink-0",
+                    verifyState.status === "success"
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25"
+                      : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {verifyState.status === "loading" ? (
+                    <><Loader2 size={14} className="animate-spin" /> Vérif...</>
+                  ) : verifyState.status === "success" ? (
+                    <><BadgeCheck size={14} /> Vérifié</>
+                  ) : (
+                    "Vérifier"
+                  )}
+                </button>
               </div>
+              {/* Stats after verification */}
+              {verifyState.status === "success" && verifyState.data && (
+                <div className="flex gap-3 pt-1">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Users size={11} className="text-slate-600" />
+                    <span className="font-semibold text-slate-200">{formatNumber(verifyState.data.followers)}</span>
+                    <span className="text-slate-600">abonnés</span>
+                  </div>
+                  {verifyState.data.following > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <span className="font-medium text-slate-400">{formatNumber(verifyState.data.following)}</span> abonnements
+                    </div>
+                  )}
+                  {verifyState.data.posts > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <Film size={11} />
+                      <span className="font-medium text-slate-400">{formatNumber(verifyState.data.posts)}</span> posts
+                    </div>
+                  )}
+                  {verifyState.data.nickname && (
+                    <div className="text-xs text-slate-600 italic">&ldquo;{verifyState.data.nickname}&rdquo;</div>
+                  )}
+                </div>
+              )}
+              {verifyState.status === "error" && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <X size={11} /> {verifyState.error}
+                </p>
+              )}
             </div>
           ))}
         </div>

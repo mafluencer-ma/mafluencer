@@ -153,6 +153,7 @@ model CreatorProfile {
   instagramHandle String?
   followersCount  Int      @default(0)
   engagementRate  Float    @default(0)
+  verified        Boolean  @default(false)
   pricePerPost    Float?
   pricePerStory   Float?
   pricePerVideo   Float?

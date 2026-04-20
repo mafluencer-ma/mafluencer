@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Users, Search, X, CheckCircle, Ban,
-  ShieldCheck, MoreVertical, Eye, RefreshCw, AlertCircle, UserPlus,
+  ShieldCheck, MoreVertical, Eye, RefreshCw, AlertCircle, UserPlus, BadgeCheck,
 } from "lucide-react";
 import Link from "next/link";
 import Badge from "@/components/ui/badge";
@@ -23,7 +23,7 @@ type AdminUser = {
   banned:       boolean;
   emailVerified: string | null;
   createdAt:    string;
-  creatorProfile?: { score: number; level: string; followersCount: number } | null;
+  creatorProfile?: { score: number; level: string; followersCount: number; verified: boolean } | null;
   brandProfile?:  { companyName: string; balance: number } | null;
 };
 
@@ -447,8 +447,13 @@ export default function AdminUsersContent() {
                   {/* Score / Info */}
                   <div className="text-xs text-slate-500">
                     {u.role === "CREATOR" && u.creatorProfile && (
-                      <div>
-                        <p className="text-indigo-300 font-semibold">{u.creatorProfile.score} pts</p>
+                      <div className="space-y-0.5">
+                        <p className="text-indigo-300 font-semibold flex items-center gap-1">
+                          {u.creatorProfile.score} pts
+                          {u.creatorProfile.verified && (
+                            <BadgeCheck size={12} className="text-emerald-400" />
+                          )}
+                        </p>
                         <p>{formatNumber(u.creatorProfile.followersCount)} abonnés</p>
                       </div>
                     )}

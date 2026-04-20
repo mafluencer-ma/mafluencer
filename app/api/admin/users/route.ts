@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     prisma.user.findMany({
       where,
       include: {
-        creatorProfile: { select: { score: true, level: true, followersCount: true } },
+        creatorProfile: { select: { score: true, level: true, followersCount: true, verified: true } },
         brandProfile:   { select: { companyName: true, balance: true } },
       },
       orderBy: { createdAt: "desc" },

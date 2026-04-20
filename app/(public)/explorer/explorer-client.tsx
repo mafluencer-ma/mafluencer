@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, MapPin, TrendingUp, Filter, X, Award, Flame } from "lucide-react";
+import { Search, MapPin, TrendingUp, Filter, X, Award, Flame, BadgeCheck } from "lucide-react";
 import Avatar from "@/components/ui/avatar";
 import Badge from "@/components/ui/badge";
 import ScrollReveal from "@/components/ui/scroll-reveal";
@@ -10,18 +10,18 @@ import { cn, formatNumber, getLevelGradient, getScoreLevel } from "@/lib/utils";
 
 // ——— Mock data (replaced by real DB later) ———
 const MOCK_CREATORS = [
-  { id: "1", username: "yassinecreates", name: "Yassine Benali", city: "Casablanca", niches: ["Humour", "Lifestyle"], score: 847, followersCount: 156000, engagementRate: 7.2, avatar: null, challengesCount: 24, missionsCount: 8 },
-  { id: "2", username: "samia_beauty", name: "Samia Lahlou", city: "Rabat", niches: ["Beauté", "Lifestyle"], score: 712, followersCount: 89000, engagementRate: 9.1, avatar: null, challengesCount: 19, missionsCount: 5 },
-  { id: "3", username: "karim.food", name: "Karim Idrissi", city: "Marrakech", niches: ["Food", "Lifestyle"], score: 634, followersCount: 210000, engagementRate: 5.4, avatar: null, challengesCount: 17, missionsCount: 6 },
-  { id: "4", username: "tech_avec_amine", name: "Amine Khalil", city: "Casablanca", niches: ["Tech", "Lifestyle"], score: 589, followersCount: 45000, engagementRate: 11.3, avatar: null, challengesCount: 15, missionsCount: 3 },
-  { id: "5", username: "sportbynawal", name: "Nawal Fassi", city: "Tanger", niches: ["Sport", "Lifestyle"], score: 521, followersCount: 67000, engagementRate: 8.6, avatar: null, challengesCount: 14, missionsCount: 4 },
-  { id: "6", username: "zainab.mode", name: "Zainab Chraibi", city: "Fès", niches: ["Beauté", "Food"], score: 478, followersCount: 32000, engagementRate: 12.1, avatar: null, challengesCount: 12, missionsCount: 2 },
-  { id: "7", username: "hassankitchen", name: "Hassan Tazi", city: "Agadir", niches: ["Food", "Humour"], score: 445, followersCount: 78000, engagementRate: 6.8, avatar: null, challengesCount: 11, missionsCount: 3 },
-  { id: "8", username: "leila_tech", name: "Leila Benhaddou", city: "Casablanca", niches: ["Tech", "Beauté"], score: 398, followersCount: 24000, engagementRate: 13.5, avatar: null, challengesCount: 10, missionsCount: 1 },
-  { id: "9", username: "omar_sport_dz", name: "Omar Guessous", city: "Rabat", niches: ["Sport", "Humour"], score: 367, followersCount: 53000, engagementRate: 7.9, avatar: null, challengesCount: 9, missionsCount: 2 },
-  { id: "10", username: "rania.lifestyle", name: "Rania Amrani", city: "Marrakech", niches: ["Lifestyle", "Beauté"], score: 334, followersCount: 41000, engagementRate: 8.3, avatar: null, challengesCount: 8, missionsCount: 1 },
-  { id: "11", username: "mehdi_humour", name: "Mehdi Ouadghiri", city: "Tanger", niches: ["Humour", "Sport"], score: 298, followersCount: 112000, engagementRate: 4.2, avatar: null, challengesCount: 7, missionsCount: 0 },
-  { id: "12", username: "nora_food_ma", name: "Nora Benzekri", city: "Fès", niches: ["Food", "Lifestyle"], score: 245, followersCount: 18000, engagementRate: 10.7, avatar: null, challengesCount: 6, missionsCount: 0 },
+  { id: "1", username: "yassinecreates", name: "Yassine Benali", city: "Casablanca", niches: ["Humour", "Lifestyle"], score: 847, followersCount: 156000, engagementRate: 7.2, avatar: null, challengesCount: 24, missionsCount: 8, verified: true },
+  { id: "2", username: "samia_beauty", name: "Samia Lahlou", city: "Rabat", niches: ["Beauté", "Lifestyle"], score: 712, followersCount: 89000, engagementRate: 9.1, avatar: null, challengesCount: 19, missionsCount: 5, verified: true },
+  { id: "3", username: "karim.food", name: "Karim Idrissi", city: "Marrakech", niches: ["Food", "Lifestyle"], score: 634, followersCount: 210000, engagementRate: 5.4, avatar: null, challengesCount: 17, missionsCount: 6, verified: true },
+  { id: "4", username: "tech_avec_amine", name: "Amine Khalil", city: "Casablanca", niches: ["Tech", "Lifestyle"], score: 589, followersCount: 45000, engagementRate: 11.3, avatar: null, challengesCount: 15, missionsCount: 3, verified: false },
+  { id: "5", username: "sportbynawal", name: "Nawal Fassi", city: "Tanger", niches: ["Sport", "Lifestyle"], score: 521, followersCount: 67000, engagementRate: 8.6, avatar: null, challengesCount: 14, missionsCount: 4, verified: false },
+  { id: "6", username: "zainab.mode", name: "Zainab Chraibi", city: "Fès", niches: ["Beauté", "Food"], score: 478, followersCount: 32000, engagementRate: 12.1, avatar: null, challengesCount: 12, missionsCount: 2, verified: false },
+  { id: "7", username: "hassankitchen", name: "Hassan Tazi", city: "Agadir", niches: ["Food", "Humour"], score: 445, followersCount: 78000, engagementRate: 6.8, avatar: null, challengesCount: 11, missionsCount: 3, verified: false },
+  { id: "8", username: "leila_tech", name: "Leila Benhaddou", city: "Casablanca", niches: ["Tech", "Beauté"], score: 398, followersCount: 24000, engagementRate: 13.5, avatar: null, challengesCount: 10, missionsCount: 1, verified: false },
+  { id: "9", username: "omar_sport_dz", name: "Omar Guessous", city: "Rabat", niches: ["Sport", "Humour"], score: 367, followersCount: 53000, engagementRate: 7.9, avatar: null, challengesCount: 9, missionsCount: 2, verified: false },
+  { id: "10", username: "rania.lifestyle", name: "Rania Amrani", city: "Marrakech", niches: ["Lifestyle", "Beauté"], score: 334, followersCount: 41000, engagementRate: 8.3, avatar: null, challengesCount: 8, missionsCount: 1, verified: false },
+  { id: "11", username: "mehdi_humour", name: "Mehdi Ouadghiri", city: "Tanger", niches: ["Humour", "Sport"], score: 298, followersCount: 112000, engagementRate: 4.2, avatar: null, challengesCount: 7, missionsCount: 0, verified: false },
+  { id: "12", username: "nora_food_ma", name: "Nora Benzekri", city: "Fès", niches: ["Food", "Lifestyle"], score: 245, followersCount: 18000, engagementRate: 10.7, avatar: null, challengesCount: 6, missionsCount: 0, verified: false },
 ];
 
 const CITIES = ["Toutes", "Casablanca", "Rabat", "Marrakech", "Tanger", "Fès", "Agadir"];
@@ -263,8 +263,11 @@ export default function ExplorerClient() {
                         <div className="flex items-center gap-2.5">
                           <Avatar name={creator.name} size="md" />
                           <div>
-                            <p className="font-semibold text-slate-100 text-sm group-hover:text-white transition-colors">
+                            <p className="font-semibold text-slate-100 text-sm group-hover:text-white transition-colors flex items-center gap-1">
                               {creator.name}
+                              {creator.verified && (
+                                <BadgeCheck size={13} className="text-emerald-400 flex-shrink-0" />
+                              )}
                             </p>
                             <p className="text-xs text-slate-600">@{creator.username}</p>
                           </div>
