@@ -69,7 +69,7 @@ export default function Sidebar() {
     isAdminRole ? ShieldCheck : role === "brand" ? Briefcase : Trophy;
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 min-h-[calc(100vh-4rem)] glass-dark border-r border-white/8 py-6 px-3 gap-1">
+    <aside className="hidden lg:flex flex-col w-60 min-h-[calc(100vh-4rem)] glass-dark py-6 px-3 gap-1 border-r transition-colors duration-300" style={{ borderColor: "var(--theme-border)" }}>
       {/* Role badge */}
       <div className="flex items-center gap-2 px-3 mb-4">
         <div className="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center">
@@ -111,7 +111,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Explorer link */}
-      <div className="border-t border-white/8 pt-4 mt-2">
+      <div className="pt-4 mt-2 border-t transition-colors duration-300" style={{ borderColor: "var(--theme-border)" }}>
         <Link
           href="/explorer"
           className="flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-sm text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all"

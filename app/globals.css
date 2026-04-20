@@ -3,27 +3,83 @@
 @import "@fontsource/outfit/600.css";
 @import "@fontsource/outfit/700.css";
 
+/* ===== Tailwind v4 — class-based dark mode ===== */
+/* The dark: prefix now activates when html has class="dark" */
+@variant dark (&:is(.dark *));
+
 /* ===== Mafluencer Design System ===== */
 
 @theme inline {
   /* Colors */
-  --color-primary: #6366F1;
+  --color-primary:       #6366F1;
   --color-primary-hover: #4F46E5;
-  --color-secondary: #EC4899;
-  --color-bg: #0F172A;
-  --color-surface: #1E293B;
-  --color-surface-2: #263347;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-hover: rgba(255, 255, 255, 0.15);
-  --color-text: #E2E8F0;
-  --color-muted: #64748B;
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
+  --color-secondary:     #EC4899;
+  --color-bg:            #0F172A;
+  --color-surface:       #1E293B;
+  --color-surface-2:     #263347;
+  --color-border:        rgba(255, 255, 255, 0.08);
+  --color-border-hover:  rgba(255, 255, 255, 0.15);
+  --color-text:          #E2E8F0;
+  --color-muted:         #64748B;
+  --color-success:       #10B981;
+  --color-warning:       #F59E0B;
+  --color-error:         #EF4444;
 
   /* Typography */
   --font-heading: "Outfit", sans-serif;
-  --font-body: "Inter", sans-serif;
+  --font-body:    "Inter", sans-serif;
+}
+
+/* ===== Theme CSS variables ===== */
+
+/* Dark (default) */
+:root {
+  --theme-bg:              #0F172A;
+  --theme-surface:         #1E293B;
+  --theme-surface-2:       #263347;
+  --theme-surface-input:   rgba(30, 41, 59, 0.6);
+  --theme-text:            #E2E8F0;
+  --theme-text-muted:      #64748B;
+  --theme-border:          rgba(255, 255, 255, 0.08);
+  --theme-border-subtle:   rgba(255, 255, 255, 0.06);
+  --theme-border-hover:    rgba(255, 255, 255, 0.15);
+  --theme-hover-bg:        rgba(255, 255, 255, 0.05);
+  --theme-hover-bg-md:     rgba(255, 255, 255, 0.06);
+  --theme-hover-bg-sm:     rgba(255, 255, 255, 0.02);
+  --theme-glass:           rgba(30, 41, 59, 0.6);
+  --theme-glass-sm:        rgba(30, 41, 59, 0.4);
+  --theme-glass-dark:      rgba(15, 23, 42, 0.8);
+  --theme-scrollbar:       #334155;
+  --theme-scrollbar-track: #0F172A;
+  --theme-skeleton-from:   #1E293B;
+  --theme-skeleton-via:    #263347;
+  --theme-nav-bg:          rgba(15, 23, 42, 0.9);
+  --theme-dropdown-bg:     rgba(30, 41, 59, 0.95);
+}
+
+/* Light overrides */
+html.light {
+  --theme-bg:              #F1F5F9;
+  --theme-surface:         #FFFFFF;
+  --theme-surface-2:       #F8FAFC;
+  --theme-surface-input:   rgba(248, 250, 252, 0.8);
+  --theme-text:            #0F172A;
+  --theme-text-muted:      #64748B;
+  --theme-border:          rgba(0, 0, 0, 0.08);
+  --theme-border-subtle:   rgba(0, 0, 0, 0.06);
+  --theme-border-hover:    rgba(0, 0, 0, 0.15);
+  --theme-hover-bg:        rgba(0, 0, 0, 0.04);
+  --theme-hover-bg-md:     rgba(0, 0, 0, 0.05);
+  --theme-hover-bg-sm:     rgba(0, 0, 0, 0.02);
+  --theme-glass:           rgba(255, 255, 255, 0.75);
+  --theme-glass-sm:        rgba(255, 255, 255, 0.55);
+  --theme-glass-dark:      rgba(248, 250, 252, 0.92);
+  --theme-scrollbar:       #CBD5E1;
+  --theme-scrollbar-track: #F1F5F9;
+  --theme-skeleton-from:   #E2E8F0;
+  --theme-skeleton-via:    #F1F5F9;
+  --theme-nav-bg:          rgba(255, 255, 255, 0.9);
+  --theme-dropdown-bg:     rgba(255, 255, 255, 0.97);
 }
 
 /* ===== Base ===== */
@@ -32,45 +88,51 @@
 }
 
 html {
-  color-scheme: dark;
   scroll-behavior: smooth;
 }
 
+html.dark  { color-scheme: dark;  }
+html.light { color-scheme: light; }
+
 body {
-  background-color: #0F172A;
-  color: #E2E8F0;
+  background-color: var(--theme-bg);
+  color:            var(--theme-text);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: "Outfit", sans-serif;
   font-weight: 700;
-  color: #E2E8F0;
+  color: var(--theme-text);
 }
 
 /* ===== Glassmorphism utilities ===== */
 .glass {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:             var(--theme-glass);
+  backdrop-filter:        blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border: 1px solid var(--theme-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .glass-sm {
-  background: rgba(30, 41, 59, 0.4);
-  backdrop-filter: blur(8px);
+  background:              var(--theme-glass-sm);
+  backdrop-filter:         blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--theme-border-subtle);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .glass-dark {
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(16px);
+  background:              var(--theme-glass-dark);
+  backdrop-filter:         blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--theme-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 /* ===== Gradient text ===== */
@@ -106,23 +168,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ===== Scrollbar ===== */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0F172A;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--theme-scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--theme-scrollbar); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
 
 /* ===== Focus ring ===== */
 *:focus-visible {
@@ -133,17 +182,21 @@ h1, h2, h3, h4, h5, h6 {
 /* ===== Selection ===== */
 ::selection {
   background: rgba(99, 102, 241, 0.3);
-  color: #E2E8F0;
+  color: var(--theme-text);
 }
 
 /* ===== Animations ===== */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
+  0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #1E293B 25%, #263347 50%, #1E293B 75%);
+  background: linear-gradient(90deg,
+    var(--theme-skeleton-from) 25%,
+    var(--theme-skeleton-via)  50%,
+    var(--theme-skeleton-from) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 8px;
@@ -151,30 +204,21 @@ h1, h2, h3, h4, h5, h6 {
 
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-  50% { box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.3); }
+  50%       { box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.3); }
 }
-
-.glow-pulse {
-  animation: pulse-glow 2s infinite;
-}
+.glow-pulse { animation: pulse-glow 2s infinite; }
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  50%       { transform: translateY(-8px); }
 }
-
-.float {
-  animation: float 3s ease-in-out infinite;
-}
+.float { animation: float 3s ease-in-out infinite; }
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
-.fade-in {
-  animation: fade-in 0.4s ease forwards;
-}
+.fade-in { animation: fade-in 0.4s ease forwards; }
 
 /* ===== Noise texture overlay ===== */
 .noise::after {
@@ -185,3 +229,80 @@ h1, h2, h3, h4, h5, h6 {
   pointer-events: none;
   border-radius: inherit;
 }
+
+/* ==========================================================================
+   LIGHT MODE OVERRIDES
+   These rules are outside @layer, so they beat @layer utilities automatically
+   in Tailwind v4's cascade — no !important needed.
+   ========================================================================== */
+
+/* ── Text colours ── */
+html.light .text-slate-100,
+html.light .text-slate-200 { color: #0F172A; }
+
+html.light .text-slate-300 { color: #1E293B; }
+
+html.light .text-slate-400 { color: #334155; }
+
+html.light .text-slate-500 { color: #475569; }
+
+html.light .text-slate-600 { color: #64748B; }
+
+html.light .text-slate-700 { color: #94A3B8; }
+
+/* Hover text */
+html.light .hover\:text-slate-100:hover,
+html.light .hover\:text-slate-200:hover,
+html.light .hover\:text-white:hover     { color: #0F172A; }
+
+html.light .hover\:text-slate-300:hover { color: #1E293B; }
+
+/* Group-hover text */
+html.light .group:hover .group-hover\:text-white,
+html.light .group:hover .group-hover\:text-slate-200 { color: #0F172A; }
+
+/* ── Background colours ── */
+/* Page-level dark backgrounds become light surfaces */
+html.light .bg-\[\#0F172A\]  { background-color: #F1F5F9; }
+html.light .bg-\[\#1E293B\]  { background-color: #FFFFFF; }
+
+/* Slate dark card / input backgrounds */
+html.light .bg-slate-800\/60 { background-color: rgba(248, 250, 252, 0.85); }
+html.light .bg-slate-800\/40 { background-color: rgba(248, 250, 252, 0.65); }
+html.light .bg-slate-800\/20 { background-color: rgba(241, 245, 249, 0.50); }
+html.light .bg-slate-700\/60 { background-color: rgba(241, 245, 249, 0.85); }
+html.light .bg-slate-700\/40 { background-color: rgba(241, 245, 249, 0.65); }
+html.light .bg-slate-800     { background-color: #E2E8F0; }
+html.light .bg-slate-700     { background-color: #CBD5E1; }
+
+/* Hover backgrounds */
+html.light .hover\:bg-white\/5:hover        { background-color: rgba(0, 0, 0, 0.04); }
+html.light .hover\:bg-white\/\[0\.06\]:hover{ background-color: rgba(0, 0, 0, 0.05); }
+html.light .hover\:bg-white\/\[0\.02\]:hover{ background-color: rgba(0, 0, 0, 0.02); }
+
+/* Group hover backgrounds */
+html.light .group:hover .group-hover\:bg-white\/5 { background-color: rgba(0, 0, 0, 0.04); }
+
+/* ── Borders ── */
+html.light .border-white\/\[0\.08\] { border-color: rgba(0, 0, 0, 0.08); }
+html.light .border-white\/\[0\.06\] { border-color: rgba(0, 0, 0, 0.06); }
+html.light .border-white\/\[0\.05\] { border-color: rgba(0, 0, 0, 0.05); }
+html.light .border-white\/8         { border-color: rgba(0, 0, 0, 0.08); }
+html.light .border-white\/5         { border-color: rgba(0, 0, 0, 0.05); }
+
+/* Dividers generated by divide-* utilities */
+html.light .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Animate-pulse skeleton children ── */
+html.light .animate-pulse .bg-slate-700\/60,
+html.light .animate-pulse .bg-slate-700\/40 { background-color: #E2E8F0; }
+
+/* ── Gradient overlays that are near-invisible in light mode ── */
+/* Keep them but tighten opacity */
+html.light .from-white\/\[0\.02\]  { --tw-gradient-from: rgba(0,0,0,0.01); }
+html.light .to-transparent         { --tw-gradient-to:   transparent; }
+
+/* ── Focus rings ── */
+html.light *:focus-visible { outline-color: #6366F1; }
