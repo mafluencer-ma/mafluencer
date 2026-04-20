@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
     return err("platform invalide");
   }
 
-  const apiKey = process.env.RAPIDAPI_KEY;
-  if (!apiKey || apiKey === "your_key_here") {
-    return err("Clé RapidAPI non configurée");
+  const apiKey = process.env.SCRAPECREATORS_API_KEY;
+  if (!apiKey) {
+    return err("Clé ScrapeCreators non configurée");
   }
 
   const handle = username.replace("@", "").trim().toLowerCase();
@@ -45,52 +45,45 @@ export async function POST(req: NextRequest) {
 
   try {
     if (platform === "tiktok") {
-      const host = process.env.RAPIDAPI_TIKTOK_HOST ?? "tiktok-api23.p.rapidapi.com";
-      const res  = await fetch(
-        `https://${host}/api/user/info?uniqueId=${encodeURIComponent(handle)}`,
-        {
-          headers: {
-            "X-RapidAPI-Key":  apiKey,
-            "X-RapidAPI-Host": host,
-          },
-        }
+      const res = await fetch(
+        `https://api.scrapecreators.com/v1/tiktok/profile?handle=${encodeURIComponent(handle)}`,
+        { headers: { "x-api-key": apiKey } }
       );
       if (!res.ok) return err("Compte TikTok introuvable");
       const data = await res.json();
-      const stats    = data?.userInfo?.stats;
-      const userInfo = data?.userInfo?.user;
-      if (!stats) return err("Compte TikTok introuvable ou privé");
+
+      // ScrapeCreators TikTok response shape
+      const stats = data?.stats ?? data?.userInfo?.stats;
+      const info  = data?.user  ?? data?.userInfo?.user ?? data;
+      if (!stats && !info?.followerCount) return err("Compte TikTok introuvable ou privé");
 
       profileData = {
-        followers: stats.followerCount  ?? 0,
-        following: stats.followingCount ?? 0,
-        posts:     stats.videoCount     ?? 0,
-        nickname:  userInfo?.nickname,
-        avatar:    userInfo?.avatarMedium,
+        followers: stats?.followerCount ?? info?.followerCount ?? 0,
+        following: stats?.followingCount ?? info?.followingCount ?? 0,
+        posts:     stats?.videoCount     ?? info?.videoCount     ?? 0,
+        nickname:  info?.nickname        ?? info?.displayName,
+        avatar:    info?.avatarMedium    ?? info?.avatar,
+        bio:       info?.signature       ?? info?.bio,
       };
     } else {
-      const host = process.env.RAPIDAPI_INSTAGRAM_HOST ?? "instagram-scraper-api2.p.rapidapi.com";
-      const res  = await fetch(
-        `https://${host}/v1/info?username_or_id_or_url=${encodeURIComponent(handle)}`,
-        {
-          headers: {
-            "X-RapidAPI-Key":  apiKey,
-            "X-RapidAPI-Host": host,
-          },
-        }
+      const res = await fetch(
+        `https://api.scrapecreators.com/v1/instagram/profile?handle=${encodeURIComponent(handle)}`,
+        { headers: { "x-api-key": apiKey } }
       );
       if (!res.ok) return err("Compte Instagram introuvable");
       const data = await res.json();
-      const d = data?.data;
+
+      // ScrapeCreators Instagram response shape
+      const d = data?.user ?? data?.data ?? data;
       if (!d) return err("Compte Instagram introuvable ou privé");
 
       profileData = {
-        followers: d.follower_count  ?? 0,
-        following: d.following_count ?? 0,
-        posts:     d.media_count     ?? 0,
-        bio:       d.biography,
-        avatar:    d.profile_pic_url,
-        nickname:  d.full_name,
+        followers: d.follower_count  ?? d.followers ?? 0,
+        following: d.following_count ?? d.following ?? 0,
+        posts:     d.media_count     ?? d.posts     ?? 0,
+        bio:       d.biography       ?? d.bio,
+        avatar:    d.profile_pic_url ?? d.avatar,
+        nickname:  d.full_name       ?? d.name,
       };
     }
   } catch {
