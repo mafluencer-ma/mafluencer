@@ -211,14 +211,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       try {
         // Safety net: ensure user row exists (PrismaAdapter creates it, but guard anyway)
+        // user.email is guaranteed non-null here (checked above)
+        const email = user.email!;
         const existing = await prisma.user.findUnique({
-          where:  { email: user.email },
+          where:  { email },
           select: { id: true },
         });
         if (!existing) {
           await prisma.user.create({
             data: {
-              email: user.email,
+              email,
               name:  user.name  ?? null,
               image: user.image ?? null,
               role:  "CREATOR",
@@ -226,7 +228,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
 
           // Send welcome email — non-blocking (skip for TikTok placeholder emails)
-          const isTikTokPlaceholder = user.email?.endsWith("@tiktok.mafluencer.ma");
+          const isTikTokPlaceholder = email.endsWith("@tiktok.mafluencer.ma");
           try {
             if (isTikTokPlaceholder) throw new Error("skip");
             const { Resend: ResendSDK } = await import("resend");
