@@ -288,3 +288,14 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// Editable legal pages (terms, privacy, etc.)
+model PageContent {
+  id          String   @id @default(cuid())
+  slug        String   @unique  // "terms" | "privacy"
+  title       String
+  content     String   @db.Text  // HTML content
+  updatedById String?            // admin user ID who last saved
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

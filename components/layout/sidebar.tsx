@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   TrendingUp,
   Megaphone,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,8 +47,9 @@ const adminNav = [
   { href: "/dashboard/admin/challenges", label: "Défis", icon: Trophy },
   { href: "/dashboard/admin/missions", label: "Missions", icon: Briefcase },
   { href: "/dashboard/admin/payments", label: "Paiements", icon: Wallet },
-  { href: "/dashboard/admin/marketing", label: "Marketing", icon: Megaphone },
-  { href: "/dashboard/admin/reports", label: "Rapports", icon: TrendingUp },
+  { href: "/dashboard/admin/marketing", label: "Marketing",     icon: Megaphone },
+  { href: "/dashboard/admin/content",   label: "Pages légales", icon: FileText  },
+  { href: "/dashboard/admin/reports",   label: "Rapports",      icon: TrendingUp },
 ];
 
 export default function Sidebar() {

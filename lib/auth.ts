@@ -48,9 +48,12 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
       params: { fields: "open_id,display_name,avatar_url,follower_count,bio_description" },
     },
     profile(profile: Record<string, unknown>) {
-      const data = (profile.data as Record<string, unknown>)?.user as Record<string, unknown> ?? profile;
+      const data   = (profile.data as Record<string, unknown>)?.user as Record<string, unknown> ?? profile;
+      const openId = data.open_id as string;
       return {
-        id:              data.open_id         as string,
+        id:              openId,
+        // TikTok does not provide email — use a stable placeholder derived from open_id
+        email:           `${openId}@tiktok.mafluencer.ma`,
         name:            data.display_name    as string,
         image:           data.avatar_url      as string,
         tiktokFollowers: data.follower_count  as number ?? 0,
@@ -193,7 +196,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (!user.email) return false;
+      // TikTok users get a placeholder email — always allow them through
+      if (!user.email && account?.provider !== "tiktok") return false;
 
       // Super admin: upsert with ADMIN role and return immediately
       if (user.email === "mafluencer.ma@gmail.com") {
@@ -221,8 +225,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
           });
 
-          // Send welcome email — non-blocking
+          // Send welcome email — non-blocking (skip for TikTok placeholder emails)
+          const isTikTokPlaceholder = user.email?.endsWith("@tiktok.mafluencer.ma");
           try {
+            if (isTikTokPlaceholder) throw new Error("skip");
             const { Resend: ResendSDK } = await import("resend");
             const resend = new ResendSDK(process.env.RESEND_API_KEY!);
             const displayName = user.name ? user.name.split(" ")[0] : "Creator";
@@ -364,9 +370,21 @@ async function syncTikTokProfile(userId: string, profile: Record<string, unknown
         followersCount: followers || existing.followersCount,
         tiktokHandle:   handle   || existing.tiktokHandle,
         bio:            bio      || existing.bio,
+        // Auto-verify creator profile on TikTok OAuth — they proved ownership
+        verified:       true,
       }});
     } else {
-      await prisma.creatorProfile.create({ data: { userId, followersCount: followers, tiktokHandle: handle, bio, niches: [], score: 0, level: "Rookie" } });
+      await prisma.creatorProfile.create({ data: {
+        userId,
+        followersCount: followers,
+        tiktokHandle:   handle,
+        bio,
+        niches:         [],
+        score:          0,
+        level:          "Rookie",
+        // Verified from day 1 — TikTok OAuth proves account ownership
+        verified:       true,
+      }});
     }
   } catch { /* non-fatal */ }
 }
