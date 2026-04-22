@@ -69,29 +69,34 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
 }
 
 // ── Custom Instagram provider ─────────────────────────────────────────────────
+// Uses the new Instagram Login product (Basic Display API deprecated Sep 2024).
+// Authorization: https://www.instagram.com/oauth/authorize
+// Instagram does not return email — stable placeholder derived from user_id.
 function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
   return {
     id:   "instagram",
     name: "Instagram",
     type: "oauth",
     authorization: {
-      url:    "https://api.instagram.com/oauth/authorize",
-      params: { scope: "user_profile,user_media" },
+      url:    "https://www.instagram.com/oauth/authorize",
+      params: { scope: "instagram_basic,instagram_content_publish" },
     },
     token:    "https://api.instagram.com/oauth/access_token",
     userinfo: {
       url:    "https://graph.instagram.com/me",
-      params: { fields: "id,username,name,account_type,profile_picture_url,followers_count,media_count,biography" },
+      params: { fields: "id,username,account_type,profile_picture_url,followers_count,media_count" },
     },
     profile(profile: Record<string, unknown>) {
+      const igId = profile.id as string;
       return {
-        id:                 profile.id                  as string,
-        name:               (profile.name as string)    ?? (profile.username as string),
-        image:              profile.profile_picture_url as string,
-        instagramFollowers: profile.followers_count     as number ?? 0,
-        instagramHandle:    profile.username            as string ?? "",
-        instagramBio:       profile.biography           as string ?? "",
-        mediaCount:         profile.media_count         as number ?? 0,
+        id:                 igId,
+        // Instagram does not provide email — use a stable placeholder
+        email:              `${igId}@instagram.mafluencer.ma`,
+        name:               (profile.username as string) ?? igId,
+        image:              profile.profile_picture_url as string ?? null,
+        instagramFollowers: profile.followers_count as number ?? 0,
+        instagramHandle:    profile.username        as string ?? "",
+        mediaCount:         profile.media_count     as number ?? 0,
       };
     },
     clientId:     options.clientId,
@@ -196,8 +201,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async signIn({ user, account, profile }) {
-      // TikTok users get a placeholder email — always allow them through
-      if (!user.email && account?.provider !== "tiktok") return false;
+      // TikTok and Instagram use placeholder emails — always allow them through
+      if (!user.email && account?.provider !== "tiktok" && account?.provider !== "instagram") return false;
 
       // Super admin: upsert with ADMIN role and return immediately
       if (user.email === "mafluencer.ma@gmail.com") {
@@ -227,8 +232,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
           });
 
-          // Send welcome email — non-blocking (skip for TikTok placeholder emails)
-          const isTikTokPlaceholder = email.endsWith("@tiktok.mafluencer.ma");
+          // Send welcome email — non-blocking (skip for social placeholder emails)
+          const isTikTokPlaceholder = email.endsWith("@tiktok.mafluencer.ma") || email.endsWith("@instagram.mafluencer.ma");
           try {
             if (isTikTokPlaceholder) throw new Error("skip");
             const { Resend: ResendSDK } = await import("resend");
@@ -402,9 +407,20 @@ async function syncInstagramProfile(userId: string, profile: Record<string, unkn
         followersCount:  followers || existing.followersCount,
         instagramHandle: handle   || existing.instagramHandle,
         bio:             bio      || existing.bio,
+        // Auto-verify on Instagram OAuth — they proved ownership
+        verified:        true,
       }});
     } else {
-      await prisma.creatorProfile.create({ data: { userId, followersCount: followers, instagramHandle: handle, bio, niches: [], score: 0, level: "Rookie" } });
+      await prisma.creatorProfile.create({ data: {
+        userId,
+        followersCount:  followers,
+        instagramHandle: handle,
+        bio,
+        niches:          [],
+        score:           0,
+        level:           "Rookie",
+        verified:        true,
+      }});
     }
   } catch { /* non-fatal */ }
 }
