@@ -11,7 +11,11 @@ export const metadata: Metadata = {
 export const revalidate = 3600;
 
 export default async function PrivacyPage() {
-  const record = await prisma.pageContent.findUnique({ where: { slug: "privacy" } });
+  let record = null;
+  try {
+    record = await prisma.pageContent.findUnique({ where: { slug: "privacy" } });
+  } catch { /* table may not exist yet — fall back to defaults */ }
+
   const { title, content } = record ?? PAGE_DEFAULTS.privacy;
   const updatedAt = record?.updatedAt ?? null;
 

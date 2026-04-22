@@ -11,7 +11,11 @@ export const metadata: Metadata = {
 export const revalidate = 3600; // ISR: revalidate every hour
 
 export default async function TermsPage() {
-  const record = await prisma.pageContent.findUnique({ where: { slug: "terms" } });
+  let record = null;
+  try {
+    record = await prisma.pageContent.findUnique({ where: { slug: "terms" } });
+  } catch { /* table may not exist yet — fall back to defaults */ }
+
   const { title, content } = record ?? PAGE_DEFAULTS.terms;
   const updatedAt = record?.updatedAt ?? null;
 
