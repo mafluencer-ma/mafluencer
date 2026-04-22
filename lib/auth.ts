@@ -236,7 +236,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             const displayName = user.name ? user.name.split(" ")[0] : "Creator";
             await resend.emails.send({
               from:    "Mafluencer <noreply@mafluencer.ma>",
-              to:      [user.email],
+              to:      [email],
               subject: "Bienvenue sur Mafluencer",
               html: `
                 <div style="font-family:Inter,sans-serif;background:#0F172A;color:#E2E8F0;padding:40px;max-width:520px;margin:0 auto;border-radius:16px;">
