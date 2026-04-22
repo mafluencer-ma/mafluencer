@@ -5,11 +5,11 @@ import { PAGE_DEFAULTS, type PageSlug } from "@/lib/page-content";
 import { revalidatePath } from "next/cache";
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const authError = await requireAdmin(req);
-  if (authError) return authError;
+  const { error } = await requireAdmin();
+  if (error) return error;
 
   const { slug } = await params;
   if (slug !== "terms" && slug !== "privacy") {
@@ -29,8 +29,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const session = await requireAdmin(req);
-  if (session instanceof NextResponse) return session;
+  const { error } = await requireAdmin();
+  if (error) return error;
 
   const { slug } = await params;
   if (slug !== "terms" && slug !== "privacy") {
@@ -50,7 +50,6 @@ export async function PUT(
     create: { slug, title, content: body.content },
   });
 
-  // Invalidate the public page cache
   revalidatePath(`/${slug}`);
 
   return NextResponse.json({ title: record.title, content: record.content, updatedAt: record.updatedAt });
