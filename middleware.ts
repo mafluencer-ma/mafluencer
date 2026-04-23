@@ -43,12 +43,14 @@ export default auth(function middleware(
   }
 
   // ── /dashboard/brand/* → BRAND, ADMIN or MANAGER only ──────────────────────
-  if (pathname.startsWith("/dashboard/brand") && role !== "BRAND" && !isAdmin) {
+  // Guard only when role is known — avoids infinite loop while JWT is being populated
+  if (pathname.startsWith("/dashboard/brand") && role && role !== "BRAND" && !isAdmin) {
     return Response.redirect(new URL("/dashboard/creator", req.url));
   }
 
   // ── /dashboard/creator/* → CREATOR, ADMIN or MANAGER only ──────────────────
-  if (pathname.startsWith("/dashboard/creator") && role !== "CREATOR" && !isAdmin) {
+  // Guard only when role is known — avoids infinite loop while JWT is being populated
+  if (pathname.startsWith("/dashboard/creator") && role && role !== "CREATOR" && !isAdmin) {
     return Response.redirect(new URL("/dashboard/brand", req.url));
   }
 

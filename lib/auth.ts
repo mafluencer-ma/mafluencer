@@ -315,6 +315,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (dbUser) {
           token.id   = dbUser.id;
           token.role = dbUser.role;
+        } else {
+          // DB user not found yet (race on first social sign-in) — default to CREATOR
+          token.role = token.role ?? "CREATOR";
         }
       } else if (user?.email === "mafluencer.ma@gmail.com") {
         const dbUser = await prisma.user.findUnique({
