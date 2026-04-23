@@ -169,8 +169,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.TIKTOK_CLIENT_SECRET!,
     }),
     Instagram({
-      clientId:     process.env.INSTAGRAM_CLIENT_ID!,
-      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET!,
+      clientId:     "26435075029485553",
+      clientSecret: "3b5b49ac9b4fc326bd7f38c19046dc44",
     }),
     Credentials({
       credentials: {

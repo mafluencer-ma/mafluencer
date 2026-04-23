@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "mafluencer_ig_2024";
+const VERIFY_TOKEN = "mafluencer_ig_2024";
 
 // ── GET: hub challenge ────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
