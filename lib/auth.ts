@@ -79,7 +79,7 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
     type: "oauth",
     authorization: {
       url:    "https://www.instagram.com/oauth/authorize",
-      params: { scope: "instagram_basic,instagram_content_publish" },
+      params: { scope: "instagram_basic" },
     },
     token:    "https://api.instagram.com/oauth/access_token",
     userinfo: {
