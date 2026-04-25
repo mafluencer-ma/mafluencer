@@ -201,8 +201,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async signIn({ user, account, profile }) {
-      // TikTok and Instagram use placeholder emails — always allow them through
-      if (!user.email && account?.provider !== "tiktok" && account?.provider !== "instagram") return false;
+      const isSocial = account?.provider === "tiktok" || account?.provider === "instagram";
+
+      // Non-social providers must have an email
+      if (!user.email && !isSocial) return false;
 
       // Super admin: upsert with ADMIN role and return immediately
       if (user.email === "mafluencer.ma@gmail.com") {
@@ -214,9 +216,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return true;
       }
 
+      // For social providers: always return true — never block on DB errors.
+      // Profile sync runs in a fire-and-forget wrapper (has its own try/catch).
+      if (isSocial) {
+        // Derive a stable placeholder email if somehow not set by the provider
+        const socialEmail = user.email
+          ?? `${user.id ?? "unknown"}@${account.provider}.mafluencer.ma`;
+
+        // Ensure user row exists (PrismaAdapter should have created it, but guard)
+        try {
+          const existing = await prisma.user.findFirst({
+            where: { OR: [{ email: socialEmail }, { id: user.id ?? "" }] },
+            select: { id: true },
+          });
+          if (!existing) {
+            await prisma.user.create({
+              data: { email: socialEmail, name: user.name ?? null, image: user.image ?? null, role: "CREATOR" },
+            });
+          }
+        } catch { /* non-fatal — PrismaAdapter may have already created the row */ }
+
+        // Sync social profile data (non-blocking)
+        if (account.provider === "tiktok" && user.id) {
+          void syncTikTokProfile(user.id, profile as Record<string, unknown>);
+        }
+        if (account.provider === "instagram" && user.id) {
+          void syncInstagramProfile(user.id, profile as Record<string, unknown>);
+        }
+
+        return true;
+      }
+
+      // Email/OAuth (Google, Credentials, Resend)
       try {
-        // Safety net: ensure user row exists (PrismaAdapter creates it, but guard anyway)
-        // user.email is guaranteed non-null here (checked above)
         const email = user.email!;
         const existing = await prisma.user.findUnique({
           where:  { email },
@@ -224,18 +256,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         if (!existing) {
           await prisma.user.create({
-            data: {
-              email,
-              name:  user.name  ?? null,
-              image: user.image ?? null,
-              role:  "CREATOR",
-            },
+            data: { email, name: user.name ?? null, image: user.image ?? null, role: "CREATOR" },
           });
 
-          // Send welcome email — non-blocking (skip for social placeholder emails)
-          const isTikTokPlaceholder = email.endsWith("@tiktok.mafluencer.ma") || email.endsWith("@instagram.mafluencer.ma");
+          // Send welcome email — non-blocking
           try {
-            if (isTikTokPlaceholder) throw new Error("skip");
             const { Resend: ResendSDK } = await import("resend");
             const resend = new ResendSDK(process.env.RESEND_API_KEY!);
             const displayName = user.name ? user.name.split(" ")[0] : "Creator";
@@ -282,20 +307,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           } catch { /* email failure must never block auth */ }
         }
 
-        if (account?.provider === "tiktok" && user.id) {
-          await syncTikTokProfile(user.id, profile as Record<string, unknown>);
-        }
-        if (account?.provider === "instagram" && user.id) {
-          await syncInstagramProfile(user.id, profile as Record<string, unknown>);
-        }
-
         return true;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        // OAuthAccountNotLinked fallback (allowDangerousEmailAccountLinking should prevent this)
-        if (msg.includes("OAuthAccountNotLinked")) {
-          return "/auth/signin?error=EmailExists";
-        }
+        if (msg.includes("OAuthAccountNotLinked")) return "/auth/signin?error=EmailExists";
         return false;
       }
     },
@@ -308,15 +323,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       // First sign-in: user object is populated — fetch role from DB and encode in token
       if (user?.email && user.email !== "mafluencer.ma@gmail.com") {
-        const dbUser = await prisma.user.findUnique({
-          where:  { email: user.email },
-          select: { id: true, role: true, name: true },
-        });
-        if (dbUser) {
-          token.id   = dbUser.id;
-          token.role = dbUser.role;
-        } else {
-          // DB user not found yet (race on first social sign-in) — default to CREATOR
+        try {
+          const dbUser = await prisma.user.findFirst({
+            where:  { OR: [{ email: user.email }, { id: user.id ?? "" }] },
+            select: { id: true, role: true },
+          });
+          if (dbUser) {
+            token.id   = dbUser.id;
+            token.role = dbUser.role;
+          } else {
+            // DB user not found — default to CREATOR so session is always valid
+            token.id   = token.id   ?? user.id ?? "";
+            token.role = token.role ?? "CREATOR";
+          }
+        } catch {
+          token.id   = token.id   ?? user.id ?? "";
           token.role = token.role ?? "CREATOR";
         }
       } else if (user?.email === "mafluencer.ma@gmail.com") {
