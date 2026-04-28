@@ -28,6 +28,14 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
     token: {
       url: "https://open.tiktokapis.com/v2/oauth/token/",
       async request({ params, provider }: { params: Record<string, unknown>; provider: { clientId?: string; clientSecret?: string; callbackUrl?: string } }) {
+        // Use AUTH_URL / NEXTAUTH_URL if set so the redirect_uri matches
+        // what's registered in the TikTok developer portal. provider.callbackUrl
+        // can resolve to localhost when NEXTAUTH_URL isn't overridden in prod.
+        const base = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
+        const redirectUri = base && !base.includes("localhost")
+          ? `${base.replace(/\/$/, "")}/api/auth/callback/tiktok`
+          : provider.callbackUrl!;
+
         const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method:  "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -36,7 +44,7 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
             client_secret: provider.clientSecret!,
             code:          params.code as string,
             grant_type:    "authorization_code",
-            redirect_uri:  provider.callbackUrl!,
+            redirect_uri:  redirectUri,
           }),
         });
         const data = await res.json();
