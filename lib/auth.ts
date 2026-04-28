@@ -11,6 +11,16 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
 import bcrypt from "bcryptjs";
 
+// ── Canonical callback URLs (hardcoded for production) ────────────────────────
+// Hostinger's reverse proxy strips X-Forwarded-Proto so NextAuth would detect
+// http:// for the token-exchange request even though the browser used https://.
+// That causes a redirect_uri mismatch and TikTok/Instagram reject the token
+// exchange with "invalid_request / malformed parameters".
+// By hardcoding the production URLs here we guarantee authorization request and
+// token exchange always send the exact same redirect_uri.
+const APP_URL   = "https://mafluencer.ma";
+const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
+
 // ── Custom TikTok provider ────────────────────────────────────────────────────
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
   return {
@@ -23,19 +33,12 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
         client_key:    options.clientId,
         response_type: "code",
         scope:         "user.info.basic,user.info.profile,user.info.stats",
+        redirect_uri:  TIKTOK_CB,
       },
     },
     token: {
       url: "https://open.tiktokapis.com/v2/oauth/token/",
       async request({ params, provider }: { params: Record<string, unknown>; provider: { clientId?: string; clientSecret?: string; callbackUrl?: string } }) {
-        // Use AUTH_URL / NEXTAUTH_URL if set so the redirect_uri matches
-        // what's registered in the TikTok developer portal. provider.callbackUrl
-        // can resolve to localhost when NEXTAUTH_URL isn't overridden in prod.
-        const base = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
-        const redirectUri = base && !base.includes("localhost")
-          ? `${base.replace(/\/$/, "")}/api/auth/callback/tiktok`
-          : provider.callbackUrl!;
-
         const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method:  "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -44,7 +47,7 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
             client_secret: provider.clientSecret!,
             code:          params.code as string,
             grant_type:    "authorization_code",
-            redirect_uri:  redirectUri,
+            redirect_uri:  TIKTOK_CB,
           }),
         });
         const data = await res.json();
