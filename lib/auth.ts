@@ -1,6 +1,23 @@
 // lib/auth.ts — Node.js runtime only (uses pg/prisma)
 // Extends auth.config.ts with PrismaAdapter + full providers + DB callbacks.
 
+// ── Force production URL before NextAuth initialises ─────────────────────────
+// Hostinger's reverse proxy does not forward X-Forwarded-Proto, so NextAuth
+// detects http:// instead of https://.  Setting AUTH_URL / NEXTAUTH_URL here
+// (before any NextAuth code runs) makes every internal OAuth URL — including
+// the authorization redirect and the token-exchange redirect_uri — resolve to
+// https://mafluencer.ma consistently.  Without this, TikTok/Instagram reject
+// the token exchange with "invalid_request / malformed parameters" because the
+// redirect_uri in the token request doesn't match the one used in the
+// authorization request.
+if (
+  !process.env.AUTH_URL ||
+  process.env.AUTH_URL.includes("localhost")
+) {
+  process.env.AUTH_URL     = "https://mafluencer.ma";
+  process.env.NEXTAUTH_URL = "https://mafluencer.ma";
+}
+
 import NextAuth from "next-auth";
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers";
 import Google from "next-auth/providers/google";
@@ -12,10 +29,6 @@ import { authConfig } from "@/auth.config";
 import bcrypt from "bcryptjs";
 
 // ── Canonical callback URLs (hardcoded for production) ────────────────────────
-// Hostinger's reverse proxy strips X-Forwarded-Proto so NextAuth would detect
-// http:// for the token-exchange request even though the browser used https://.
-// That causes a redirect_uri mismatch and TikTok/Instagram reject the token
-// exchange with "invalid_request / malformed parameters".
 // By hardcoding the production URLs here we guarantee authorization request and
 // token exchange always send the exact same redirect_uri.
 const APP_URL   = "https://mafluencer.ma";
