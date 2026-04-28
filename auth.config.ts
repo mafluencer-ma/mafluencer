@@ -45,7 +45,13 @@ export const authConfig: NextAuthConfig = {
     redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
-        if (new URL(url).origin === baseUrl) return url;
+        const parsed = new URL(url);
+        if (parsed.origin === baseUrl) {
+          // Never land on bare base URL — always go to at least /dashboard
+          return parsed.pathname === "/" || parsed.pathname === ""
+            ? `${baseUrl}/dashboard`
+            : url;
+        }
       } catch { /* malformed url */ }
       return `${baseUrl}/dashboard`;
     },

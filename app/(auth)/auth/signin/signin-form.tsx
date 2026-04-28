@@ -49,7 +49,13 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
   ) {
     setLoading(true);
     try {
-      await signIn(provider, { callbackUrl: "/dashboard" });
+      // TikTok and Instagram are creator-only — go directly to creator dashboard.
+      // Google can be creator or brand, so route through /dashboard for role detection.
+      const callbackUrl =
+        provider === "tiktok" || provider === "instagram"
+          ? "/dashboard/creator"
+          : "/dashboard";
+      await signIn(provider, { callbackUrl });
     } catch {
       toast.error("Erreur lors de la connexion.");
       setLoading(false);

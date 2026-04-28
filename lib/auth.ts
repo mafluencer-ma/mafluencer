@@ -377,7 +377,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async redirect({ url, baseUrl }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {
-        if (new URL(url).origin === baseUrl) return url;
+        const parsed = new URL(url);
+        if (parsed.origin === baseUrl) {
+          return parsed.pathname === "/" || parsed.pathname === ""
+            ? `${baseUrl}/dashboard`
+            : url;
+        }
       } catch { /* malformed */ }
       return `${baseUrl}/dashboard`;
     },
