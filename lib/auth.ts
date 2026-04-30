@@ -30,6 +30,9 @@ import bcrypt from "bcryptjs";
 const APP_URL   = "https://mafluencer.ma";
 const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
 
+
+
+
 // ── Custom TikTok provider ────────────────────────────────────────────────────
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
   return {
