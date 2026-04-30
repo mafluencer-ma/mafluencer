@@ -48,18 +48,26 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
     token: {
       url: "https://open.tiktokapis.com/v2/oauth/token/",
       async request({ params, provider }: { params: Record<string, unknown>; provider: { clientId?: string; clientSecret?: string; callbackUrl?: string } }) {
-        const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+        const code        = (params.code ?? params.auth_code ?? params.authorization_code) as string | undefined;
+        const redirectUri = TIKTOK_CB;
+        const body        = new URLSearchParams({
+          client_key:    provider.clientId!,
+          client_secret: provider.clientSecret!,
+          code:          code ?? "",
+          grant_type:    "authorization_code",
+          redirect_uri:  redirectUri,
+        });
+        console.log("[TikTok token exchange] params keys:", Object.keys(params));
+        console.log("[TikTok token exchange] code:", code);
+        console.log("[TikTok token exchange] redirect_uri:", redirectUri);
+        console.log("[TikTok token exchange] body:", body.toString());
+        const res  = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method:  "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_key:    provider.clientId!,
-            client_secret: provider.clientSecret!,
-            code:          params.code as string,
-            grant_type:    "authorization_code",
-            redirect_uri:  TIKTOK_CB,
-          }),
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "Cache-Control": "no-cache" },
+          body,
         });
         const data = await res.json();
+        console.log("[TikTok token exchange] response:", JSON.stringify(data));
         return { tokens: data };
       },
     },
