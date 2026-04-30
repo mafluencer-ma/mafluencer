@@ -10,13 +10,9 @@
 // the token exchange with "invalid_request / malformed parameters" because the
 // redirect_uri in the token request doesn't match the one used in the
 // authorization request.
-if (
-  !process.env.AUTH_URL ||
-  process.env.AUTH_URL.includes("localhost")
-) {
-  process.env.AUTH_URL     = "https://mafluencer.ma";
-  process.env.NEXTAUTH_URL = "https://mafluencer.ma";
-}
+// Always force production URL — Hostinger proxy must not override this
+process.env.AUTH_URL     = "https://mafluencer.ma";
+process.env.NEXTAUTH_URL = "https://mafluencer.ma";
 
 import NextAuth from "next-auth";
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers";
