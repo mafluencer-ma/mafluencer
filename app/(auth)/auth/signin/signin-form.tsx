@@ -43,68 +43,21 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
     }
   }
 
-  // Google — normal full-page redirect
-  async function handleGoogleSignIn() {
-    setLoadingGoogle(true);
-    try {
-      await signIn("google", { callbackUrl: "/dashboard" });
-    } catch {
-      toast.error("Erreur lors de la connexion.");
-      setLoadingGoogle(false);
-    }
-  }
-
-  // TikTok / Instagram — open a centered popup, listen for the result
-  function handleSocialOAuth(
-    provider: "tiktok" | "instagram",
+  async function handleOAuth(
+    provider: "google" | "tiktok" | "instagram",
     setLoading: (v: boolean) => void
   ) {
     setLoading(true);
-
-    const width  = 520;
-    const height = 700;
-    const left   = Math.round(window.screenX + (window.outerWidth  - width)  / 2);
-    const top    = Math.round(window.screenY + (window.outerHeight - height) / 2);
-
-    const popup = window.open(
-      `/auth/social-popup?provider=${provider}`,
-      "SocialAuth",
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-    );
-
-    if (!popup) {
-      toast.error("Popup bloqué. Autorise les popups dans ton navigateur et réessaie.");
+    try {
+      const callbackUrl =
+        provider === "tiktok" || provider === "instagram"
+          ? "/dashboard/creator"
+          : "/dashboard";
+      await signIn(provider, { callbackUrl });
+    } catch {
+      toast.error("Erreur lors de la connexion.");
       setLoading(false);
-      return;
     }
-
-    const cleanup = () => {
-      window.removeEventListener("message", onMessage);
-      clearInterval(closedPoll);
-    };
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type === "social-auth-success") {
-        cleanup();
-        setLoading(false);
-        window.location.href = "/dashboard/creator";
-      } else if (event.data?.type === "social-auth-error") {
-        cleanup();
-        setLoading(false);
-        toast.error("Erreur lors de la connexion sociale.");
-      }
-    };
-
-    // Detect if user manually closes the popup
-    const closedPoll = setInterval(() => {
-      if (popup.closed) {
-        cleanup();
-        setLoading(false);
-      }
-    }, 500);
-
-    window.addEventListener("message", onMessage);
   }
 
   return (
@@ -223,7 +176,7 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
             variant="secondary"
             size="lg"
             className="w-full bg-black hover:bg-zinc-900 border-zinc-800 text-white"
-            onClick={() => handleSocialOAuth("tiktok", setLoadingTikTok)}
+            onClick={() => handleOAuth("tiktok", setLoadingTikTok)}
             loading={loadingTikTok}
           >
             <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -237,7 +190,7 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
             variant="secondary"
             size="lg"
             className="w-full bg-gradient-to-r from-[#833AB4] via-[#C13584] to-[#E1306C] hover:opacity-90 border-0 text-white"
-            onClick={() => handleSocialOAuth("instagram", setLoadingInstagram)}
+            onClick={() => handleOAuth("instagram", setLoadingInstagram)}
             loading={loadingInstagram}
           >
             <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -250,7 +203,7 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
             variant="secondary"
             size="lg"
             className="w-full"
-            onClick={handleGoogleSignIn}
+            onClick={() => handleOAuth("google", setLoadingGoogle)}
             loading={loadingGoogle}
           >
             <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">

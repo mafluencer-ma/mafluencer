@@ -10,9 +10,15 @@
 // the token exchange with "invalid_request / malformed parameters" because the
 // redirect_uri in the token request doesn't match the one used in the
 // authorization request.
-// Always force production URL — Hostinger proxy must not override this
-process.env.AUTH_URL     = "https://mafluencer.ma";
-process.env.NEXTAUTH_URL = "https://mafluencer.ma";
+// Always force production values — Hostinger proxy must not override these.
+// AUTH_SECRET must be identical between the request that sets the state cookie
+// and the callback that verifies it; if the env var is missing or empty the
+// JWT decode fails → "state value could not be parsed".
+// TODO: move these to Hostinger env panel and remove the hardcoded values.
+process.env.AUTH_URL      = "https://mafluencer.ma";
+process.env.NEXTAUTH_URL  = "https://mafluencer.ma";
+process.env.AUTH_SECRET   = "4a8f2c1b9e3d7056af82c14b9f3e7025da8f12c4b9e3067fa82c14b9e307256";
+process.env.NEXTAUTH_SECRET = process.env.AUTH_SECRET;
 
 import NextAuth from "next-auth";
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers";
@@ -135,36 +141,104 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
 }
 
 // ── Custom Instagram provider ─────────────────────────────────────────────────
-// Uses the new Instagram Login product (Basic Display API deprecated Sep 2024).
-// Authorization: https://www.instagram.com/oauth/authorize
-// Instagram does not return email — stable placeholder derived from user_id.
+// Instagram Login product (Basic Display API deprecated Sep 2024).
+//
+// Required setup in Meta Developer Console:
+//   App → Products → Instagram Login → Settings
+//   Valid OAuth Redirect URIs: https://mafluencer.ma/api/auth/callback/instagram
+//
+// redirect_uri is hardcoded in both auth request and token exchange —
+// they must be byte-for-byte identical or Instagram returns "invalid_request".
+// options.clientId/clientSecret used from closure (same pattern as TikTok fix).
 function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
+  const CB = "https://mafluencer.ma/api/auth/callback/instagram";
+
   return {
     id:   "instagram",
     name: "Instagram",
     type: "oauth",
+
     authorization: {
-      url:    "https://www.instagram.com/oauth/authorize",
-      params: { scope: "instagram_basic" },
+      url: "https://www.instagram.com/oauth/authorize",
+      params: {
+        client_id:     options.clientId,
+        response_type: "code",
+        scope:         "instagram_basic",
+        redirect_uri:  CB,
+      },
     },
-    token:    "https://api.instagram.com/oauth/access_token",
+
+    token: {
+      url: "https://api.instagram.com/oauth/access_token",
+      async request({ params }: { params: Record<string, unknown> }) {
+        const code = params.code as string;
+
+        console.log("[Instagram] token exchange → code:", code, "| redirect_uri:", CB);
+
+        const body = new URLSearchParams({
+          client_id:     options.clientId!,
+          client_secret: options.clientSecret!,
+          grant_type:    "authorization_code",
+          redirect_uri:  CB,
+          code,
+        });
+
+        const res  = await fetch("https://api.instagram.com/oauth/access_token", {
+          method:  "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        });
+
+        const data = await res.json();
+        console.log("[Instagram] token response:", JSON.stringify(data));
+
+        if (!res.ok || data.error_type || data.error) {
+          throw new Error(
+            data.error_message ?? data.error?.message ?? "Instagram token exchange failed"
+          );
+        }
+
+        return {
+          tokens: {
+            access_token: data.access_token as string,
+            token_type:   "Bearer",
+            // Instagram short-lived tokens don't include expires_in by default
+          },
+        };
+      },
+    },
+
     userinfo: {
-      url:    "https://graph.instagram.com/me",
-      params: { fields: "id,username,account_type,profile_picture_url,followers_count,media_count" },
+      url: "https://graph.instagram.com/me",
+      async request({ tokens }: { tokens: Record<string, unknown> }) {
+        const fields = "id,username,account_type,profile_picture_url,followers_count,media_count";
+        const res    = await fetch(
+          `https://graph.instagram.com/me?fields=${fields}&access_token=${tokens.access_token}`
+        );
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          console.error("[Instagram] userinfo error:", JSON.stringify(data));
+          throw new Error(data.error?.message ?? "Failed to fetch Instagram profile");
+        }
+
+        return data;
+      },
     },
+
     profile(profile: Record<string, unknown>) {
       const igId = profile.id as string;
       return {
         id:                 igId,
-        // Instagram does not provide email — use a stable placeholder
         email:              `${igId}@instagram.mafluencer.ma`,
         name:               (profile.username as string) ?? igId,
-        image:              profile.profile_picture_url as string ?? null,
-        instagramFollowers: profile.followers_count as number ?? 0,
-        instagramHandle:    profile.username        as string ?? "",
-        mediaCount:         profile.media_count     as number ?? 0,
+        image:              (profile.profile_picture_url as string) ?? null,
+        instagramFollowers: (profile.followers_count as number) ?? 0,
+        instagramHandle:    (profile.username as string) ?? "",
+        mediaCount:         (profile.media_count as number) ?? 0,
       };
     },
+
     clientId:     options.clientId,
     clientSecret: options.clientSecret,
     checks:       ["state"],
