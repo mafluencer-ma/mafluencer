@@ -34,43 +34,61 @@ const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
 
 
 // ── Custom TikTok provider ────────────────────────────────────────────────────
+// Follows TikTok OAuth 2.0 docs exactly:
+// https://developers.tiktok.com/doc/oauth-user-access-token-management
+//
+// Key rules:
+// • Authorization URL receives client_key, scope, response_type, redirect_uri, state
+// • redirect_uri must be omitted from authorization.params so NextAuth uses its own
+//   computed value (from AUTH_URL).  We then mirror that same value in the token exchange
+//   via provider.callbackUrl — guaranteeing both sides match.
+// • Token exchange posts client_key (NOT client_id), client_secret, code, grant_type,
+//   redirect_uri as application/x-www-form-urlencoded.
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
   return {
     id:   "tiktok",
     name: "TikTok",
     type: "oauth",
     authorization: {
-      url:    "https://www.tiktok.com/v2/auth/authorize",
+      // Trailing slash required by TikTok
+      url:    "https://www.tiktok.com/v2/auth/authorize/",
       params: {
+        // client_key replaces the standard client_id for TikTok
         client_key:    options.clientId,
         response_type: "code",
         scope:         "user.info.basic,user.info.profile,user.info.stats",
-        redirect_uri:  TIKTOK_CB,
+        // redirect_uri intentionally omitted — NextAuth adds it from AUTH_URL.
+        // Adding it here too creates a duplicate param which TikTok rejects as malformed.
       },
     },
     token: {
       url: "https://open.tiktokapis.com/v2/oauth/token/",
       async request({ params, provider }: { params: Record<string, unknown>; provider: { clientId?: string; clientSecret?: string; callbackUrl?: string } }) {
-        const code        = (params.code ?? params.auth_code ?? params.authorization_code) as string | undefined;
-        const redirectUri = TIKTOK_CB;
-        const body        = new URLSearchParams({
+        // provider.callbackUrl is the redirect_uri NextAuth used in the authorization
+        // request — must be identical here for TikTok to accept the code.
+        const redirectUri = provider.callbackUrl ?? TIKTOK_CB;
+        const code        = params.code as string;
+
+        console.log("[TikTok] token exchange → code:", code, "redirect_uri:", redirectUri);
+
+        const body = new URLSearchParams({
           client_key:    provider.clientId!,
           client_secret: provider.clientSecret!,
-          code:          code ?? "",
+          code,
           grant_type:    "authorization_code",
           redirect_uri:  redirectUri,
         });
-        console.log("[TikTok token exchange] params keys:", Object.keys(params));
-        console.log("[TikTok token exchange] code:", code);
-        console.log("[TikTok token exchange] redirect_uri:", redirectUri);
-        console.log("[TikTok token exchange] body:", body.toString());
+
         const res  = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method:  "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "Cache-Control": "no-cache" },
+          headers: {
+            "Content-Type":  "application/x-www-form-urlencoded",
+            "Cache-Control": "no-cache",
+          },
           body,
         });
         const data = await res.json();
-        console.log("[TikTok token exchange] response:", JSON.stringify(data));
+        console.log("[TikTok] token response:", JSON.stringify(data));
         return { tokens: data };
       },
     },
