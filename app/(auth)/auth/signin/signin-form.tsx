@@ -190,7 +190,7 @@ export default function SigninForm({ errorParam }: { errorParam?: string }) {
             variant="secondary"
             size="lg"
             className="w-full bg-gradient-to-r from-[#833AB4] via-[#C13584] to-[#E1306C] hover:opacity-90 border-0 text-white"
-            onClick={() => handleOAuth("instagram", setLoadingInstagram)}
+            onClick={() => { setLoadingInstagram(true); window.location.href = "/api/auth/instagram/login"; }}
             loading={loadingInstagram}
           >
             <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
