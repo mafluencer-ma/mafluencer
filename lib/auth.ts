@@ -45,75 +45,113 @@ const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
 // • Token exchange posts client_key (NOT client_id), client_secret, code, grant_type,
 //   redirect_uri as application/x-www-form-urlencoded.
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
+  const TIKTOK_CB = "https://mafluencer.ma/api/auth/callback/tiktok";
+
   return {
-    id:   "tiktok",
+    id: "tiktok",
     name: "TikTok",
     type: "oauth",
+
     authorization: {
-      // Trailing slash required by TikTok
-      url:    "https://www.tiktok.com/v2/auth/authorize/",
+      url: "https://www.tiktok.com/v2/auth/authorize/",
       params: {
-        // client_key replaces the standard client_id for TikTok
-        client_key:    options.clientId,
+        client_key: options.clientId,
         response_type: "code",
-        scope:         "user.info.basic,user.info.profile,user.info.stats",
-        // redirect_uri intentionally omitted — NextAuth adds it from AUTH_URL.
-        // Adding it here too creates a duplicate param which TikTok rejects as malformed.
+        scope: "user.info.basic,user.info.profile,user.info.stats",
+        redirect_uri: TIKTOK_CB, // ✅ FORCE exact match
       },
     },
+
     token: {
       url: "https://open.tiktokapis.com/v2/oauth/token/",
-      async request({ params, provider }: { params: Record<string, unknown>; provider: { clientId?: string; clientSecret?: string; callbackUrl?: string } }) {
-        // provider.callbackUrl is the redirect_uri NextAuth used in the authorization
-        // request — must be identical here for TikTok to accept the code.
-        const redirectUri = provider.callbackUrl ?? TIKTOK_CB;
-        const code        = params.code as string;
-
-        console.log("[TikTok] token exchange → code:", code, "redirect_uri:", redirectUri);
+      async request({ params, provider }) {
+        const code = params.code as string;
 
         const body = new URLSearchParams({
-          client_key:    provider.clientId!,
-          client_secret: provider.clientSecret!,
+          client_key: options.clientId!,
+          client_secret: options.clientSecret!,
           code,
-          grant_type:    "authorization_code",
-          redirect_uri:  redirectUri,
+          grant_type: "authorization_code",
+          redirect_uri: TIKTOK_CB, // ✅ MUST MATCH EXACTLY
         });
 
-        const res  = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
-          method:  "POST",
+        const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+          method: "POST",
           headers: {
-            "Content-Type":  "application/x-www-form-urlencoded",
-            "Cache-Control": "no-cache",
+            "Content-Type": "application/x-www-form-urlencoded",
           },
           body,
         });
+
         const data = await res.json();
-        console.log("[TikTok] token response:", JSON.stringify(data));
-        return { tokens: data };
+
+        // 🔴 VERY IMPORTANT: handle TikTok errors explicitly
+        if (!res.ok || data.error) {
+          console.error("[TikTok ERROR]", data);
+          throw new Error(data.error_description || "TikTok OAuth failed");
+        }
+
+        // ✅ Normalize response for NextAuth
+        return {
+          tokens: {
+            access_token: data.access_token,
+            expires_in: data.expires_in,
+            refresh_token: data.refresh_token,
+            token_type: "Bearer",
+          },
+        };
       },
     },
+
     userinfo: {
-      url:    "https://open.tiktokapis.com/v2/user/info/",
-      params: { fields: "open_id,display_name,avatar_url,follower_count,bio_description" },
+      url: "https://open.tiktokapis.com/v2/user/info/",
+      async request({ tokens }) {
+        const res = await fetch(
+          "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url,follower_count,bio_description",
+          {
+            headers: {
+              Authorization: `Bearer ${tokens.access_token}`,
+            },
+          }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          console.error("[TikTok USER ERROR]", data);
+          throw new Error("Failed to fetch TikTok profile");
+        }
+
+        return data;
+      },
     },
-    profile(profile: Record<string, unknown>) {
-      const data   = (profile.data as Record<string, unknown>)?.user as Record<string, unknown> ?? profile;
-      const openId = data.open_id as string;
+
+    profile(profile: any) {
+      const user = profile?.data?.user ?? {};
+
+      const openId = user.open_id;
+
       return {
-        id:              openId,
-        // TikTok does not provide email — use a stable placeholder derived from open_id
-        email:           `${openId}@tiktok.mafluencer.ma`,
-        name:            data.display_name    as string,
-        image:           data.avatar_url      as string,
-        tiktokFollowers: data.follower_count  as number ?? 0,
-        tiktokBio:       data.bio_description as string ?? "",
-        tiktokHandle:    data.display_name    as string ?? "",
+        id: openId,
+        email: `${openId}@tiktok.mafluencer.ma`,
+        name: user.display_name,
+        image: user.avatar_url,
+        tiktokFollowers: user.follower_count ?? 0,
+        tiktokBio: user.bio_description ?? "",
+        tiktokHandle: user.display_name ?? "",
       };
     },
-    clientId:     options.clientId,
+
+    clientId: options.clientId,
     clientSecret: options.clientSecret,
-    checks:       ["state"],
-    style: { logo: "https://www.tiktok.com/favicon.ico", bg: "#000000", text: "#ffffff" },
+
+    checks: ["state"],
+
+    style: {
+      logo: "https://www.tiktok.com/favicon.ico",
+      bg: "#000000",
+      text: "#ffffff",
+    },
   };
 }
 
