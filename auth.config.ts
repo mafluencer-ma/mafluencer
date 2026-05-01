@@ -5,6 +5,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 
+
 export const authConfig: NextAuthConfig = {
   trustHost: true,
   // Must match lib/auth.ts so middleware can verify JWTs it didn't create
