@@ -1,38 +1,28 @@
 // GET /api/auth/instagram/login
-// Builds the Instagram OAuth URL and redirects the browser there.
-// Stores a CSRF state value in a short-lived cookie so the callback
-// can verify the redirect is genuine.
+// Redirects directly to Instagram's OAuth authorization page using the
+// exact URL provided for this app. Appends a CSRF state param and stores
+// it in a short-lived cookie so the callback can verify the redirect.
 
 import { NextResponse } from "next/server";
 
-const CLIENT_ID   = "26435075029485553";
-const REDIRECT_URI = "https://mafluencer.ma/api/auth/callback/instagram";
-const SCOPE        = [
-  "instagram_business_basic",
-  "instagram_business_manage_messages",
-  "instagram_business_manage_comments",
-  "instagram_business_content_publish",
-  "instagram_business_manage_insights",
-].join(",");
+// Base URL as provided — state is appended dynamically for CSRF protection.
+const INSTAGRAM_AUTH_BASE =
+  "https://www.instagram.com/oauth/authorize" +
+  "?force_reauth=true" +
+  "&client_id=26435075029485553" +
+  "&redirect_uri=https://mafluencer.ma/api/auth/callback/instagram" +
+  "&response_type=code" +
+  "&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
 
 export async function GET() {
   const state = crypto.randomUUID();
 
-  const params = new URLSearchParams({
-    force_reauth:  "true",
-    client_id:     CLIENT_ID,
-    redirect_uri:  REDIRECT_URI,
-    response_type: "code",
-    scope:         SCOPE,
-    state,
-  });
-
   const response = NextResponse.redirect(
-    `https://www.instagram.com/oauth/authorize?${params.toString()}`
+    `${INSTAGRAM_AUTH_BASE}&state=${state}`
   );
 
-  // Store state for CSRF verification in the callback.
-  // SameSite=Lax is enough — top-level GET redirects (like OAuth callbacks) carry Lax cookies.
+  // SameSite=Lax is sufficient — top-level GET redirects (OAuth callbacks)
+  // carry Lax cookies back to the same site.
   response.cookies.set("ig_state", state, {
     httpOnly: true,
     secure:   true,
