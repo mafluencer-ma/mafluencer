@@ -34,70 +34,65 @@ const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
 
 
 // ── Custom TikTok provider ────────────────────────────────────────────────────
-// Follows TikTok OAuth 2.0 docs exactly:
-// https://developers.tiktok.com/doc/oauth-user-access-token-management
-//
-// Key rules:
-// • Authorization URL receives client_key, scope, response_type, redirect_uri, state
-// • redirect_uri must be omitted from authorization.params so NextAuth uses its own
-//   computed value (from AUTH_URL).  We then mirror that same value in the token exchange
-//   via provider.callbackUrl — guaranteeing both sides match.
-// • Token exchange posts client_key (NOT client_id), client_secret, code, grant_type,
-//   redirect_uri as application/x-www-form-urlencoded.
+// Follows TikTok OAuth 2.0 docs exactly.
+// redirect_uri is hardcoded in BOTH the authorization request and the token
+// exchange — they must be byte-for-byte identical or TikTok returns
+// "invalid_request / malformed parameters".
+// options.clientId / clientSecret are used directly from the closure so the
+// values are always the ones we passed in, not what NextAuth copies to provider.
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
-  const TIKTOK_CB = "https://mafluencer.ma/api/auth/callback/tiktok";
+  const CB = "https://mafluencer.ma/api/auth/callback/tiktok";
 
   return {
-    id: "tiktok",
+    id:   "tiktok",
     name: "TikTok",
     type: "oauth",
 
     authorization: {
       url: "https://www.tiktok.com/v2/auth/authorize/",
       params: {
-        client_key: options.clientId,
+        client_key:    options.clientId,
         response_type: "code",
-        scope: "user.info.basic,user.info.profile,user.info.stats",
-        redirect_uri: TIKTOK_CB, // ✅ FORCE exact match
+        scope:         "user.info.basic,user.info.profile,user.info.stats",
+        redirect_uri:  CB,         // hardcoded — must match token exchange below
       },
     },
 
     token: {
       url: "https://open.tiktokapis.com/v2/oauth/token/",
-      async request({ params, provider }) {
+      async request({ params }: { params: Record<string, unknown> }) {
         const code = params.code as string;
 
+        console.log("[TikTok] token exchange → code:", code, "| redirect_uri:", CB);
+
         const body = new URLSearchParams({
-          client_key: options.clientId!,
+          client_key:    options.clientId!,
           client_secret: options.clientSecret!,
           code,
-          grant_type: "authorization_code",
-          redirect_uri: TIKTOK_CB, // ✅ MUST MATCH EXACTLY
+          grant_type:    "authorization_code",
+          redirect_uri:  CB,       // must be byte-for-byte identical to auth request
         });
 
-        const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
+        const res  = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+          method:  "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body,
         });
 
         const data = await res.json();
+        console.log("[TikTok] token response:", JSON.stringify(data));
 
-        // 🔴 VERY IMPORTANT: handle TikTok errors explicitly
         if (!res.ok || data.error) {
-          console.error("[TikTok ERROR]", data);
-          throw new Error(data.error_description || "TikTok OAuth failed");
+          throw new Error(data.error_description ?? "TikTok token exchange failed");
         }
 
-        // ✅ Normalize response for NextAuth
+        // Normalize to what NextAuth expects
         return {
           tokens: {
-            access_token: data.access_token,
-            expires_in: data.expires_in,
-            refresh_token: data.refresh_token,
-            token_type: "Bearer",
+            access_token:  data.access_token  as string,
+            refresh_token: data.refresh_token as string | undefined,
+            expires_in:    data.expires_in    as number | undefined,
+            token_type:    "Bearer",
           },
         };
       },
@@ -105,53 +100,37 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
 
     userinfo: {
       url: "https://open.tiktokapis.com/v2/user/info/",
-      async request({ tokens }) {
+      async request({ tokens }: { tokens: Record<string, unknown> }) {
         const res = await fetch(
           "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url,follower_count,bio_description",
-          {
-            headers: {
-              Authorization: `Bearer ${tokens.access_token}`,
-            },
-          }
+          { headers: { Authorization: `Bearer ${tokens.access_token}` } }
         );
-
         const data = await res.json();
-
         if (!res.ok || data.error) {
-          console.error("[TikTok USER ERROR]", data);
-          throw new Error("Failed to fetch TikTok profile");
+          throw new Error("Failed to fetch TikTok user info");
         }
-
         return data;
       },
     },
 
-    profile(profile: any) {
-      const user = profile?.data?.user ?? {};
-
-      const openId = user.open_id;
-
+    profile(profile: Record<string, unknown>) {
+      const user   = ((profile.data as Record<string, unknown>)?.user ?? {}) as Record<string, unknown>;
+      const openId = user.open_id as string;
       return {
-        id: openId,
-        email: `${openId}@tiktok.mafluencer.ma`,
-        name: user.display_name,
-        image: user.avatar_url,
-        tiktokFollowers: user.follower_count ?? 0,
-        tiktokBio: user.bio_description ?? "",
-        tiktokHandle: user.display_name ?? "",
+        id:              openId,
+        email:           `${openId}@tiktok.mafluencer.ma`,
+        name:            user.display_name    as string ?? "",
+        image:           user.avatar_url      as string ?? null,
+        tiktokFollowers: user.follower_count  as number ?? 0,
+        tiktokBio:       user.bio_description as string ?? "",
+        tiktokHandle:    user.display_name    as string ?? "",
       };
     },
 
-    clientId: options.clientId,
+    clientId:     options.clientId,
     clientSecret: options.clientSecret,
-
-    checks: ["state"],
-
-    style: {
-      logo: "https://www.tiktok.com/favicon.ico",
-      bg: "#000000",
-      text: "#ffffff",
-    },
+    checks:       ["state"],
+    style: { logo: "https://www.tiktok.com/favicon.ico", bg: "#000000", text: "#ffffff" },
   };
 }
 
