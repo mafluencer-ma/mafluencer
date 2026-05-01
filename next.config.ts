@@ -1,11 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Tell Next.js it runs behind Hostinger's reverse proxy.
-  // This makes it trust X-Forwarded-Proto / X-Forwarded-Host headers so that
-  // generated URLs (OAuth redirects, absolute links) use https:// instead of http://.
   experimental: {
-    trustHostHeader: true,
     serverActions: {
       bodySizeLimit: "10mb",
     },
