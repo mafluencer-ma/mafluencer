@@ -299,3 +299,12 @@ model PageContent {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// YouCan Pay permanent payment links
+model LienPaiement {
+  id        String   @id @default(cuid())
+  nom       String
+  montant   Float
+  statut    String   @default("ACTIF")
+  createdAt DateTime @default(now())
+}
