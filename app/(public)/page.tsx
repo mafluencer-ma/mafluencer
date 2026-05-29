@@ -21,6 +21,7 @@ import {
   Globe,
 } from "lucide-react";
 import ScrollReveal from "@/components/ui/scroll-reveal";
+import HeroCTA from "@/components/landing/hero-cta";
 
 export const metadata: Metadata = {
   title: "Mafluencer — La plateforme qui récompense les vrais créateurs",
@@ -179,23 +180,8 @@ export default function LandingPage() {
             <span className="text-pink-300 font-semibold">performance réelle</span>.
           </p>
 
-          {/* CTA */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
-            <Link
-              href="/auth/register"
-              className="group flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white font-semibold text-base hover:from-indigo-600 hover:to-pink-600 transition-all duration-200 hover:scale-[1.02] shadow-2xl shadow-indigo-500/30"
-            >
-              Créer mon compte — c&apos;est gratuit
-              <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-            <Link
-              href="/explorer"
-              className="flex items-center gap-2.5 px-8 py-4 rounded-2xl bg-white/[0.05] border border-white/[0.1] text-slate-300 font-medium text-base hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white transition-all duration-200"
-            >
-              <Play size={15} className="text-indigo-400" />
-              Voir le classement
-            </Link>
-          </div>
+          {/* CTA — adapts based on auth state */}
+          <HeroCTA />
 
           {/* Trust row */}
           <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-slate-600">

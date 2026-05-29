@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   CheckCircle, ArrowRight, Loader2, AlertCircle,
-  Users, Sparkles, Clock,
+  Users, Sparkles, Clock, Music, ExternalLink, CheckCircle2,
 } from "lucide-react";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -24,7 +24,9 @@ type ProfilePreview = {
   platform:  Platform;
 };
 
-type Step = "platform" | "username" | "confirm" | "success";
+type SocialStatus = { loginProvider: string; tiktok: boolean; instagram: boolean };
+
+type Step = "platform" | "social-connect" | "username" | "confirm" | "success";
 
 // ── Platform icons ─────────────────────────────────────────────────────────────
 
@@ -67,6 +69,66 @@ function platformLabel(p: Platform) {
   return p === "tiktok" ? "TikTok" : "Instagram";
 }
 
+function openPopup(url: string): Window | null {
+  const w = 520, h = 680;
+  const left = Math.round(window.screenX + (window.outerWidth  - w) / 2);
+  const top  = Math.round(window.screenY + (window.outerHeight - h) / 2);
+  return window.open(url, "social_connect", `width=${w},height=${h},left=${left},top=${top},toolbar=0,menubar=0`);
+}
+
+// ── Social connect card ───────────────────────────────────────────────────────
+
+function OAuthCard({
+  provider,
+  connected,
+  onConnect,
+  connecting,
+}: {
+  provider: Platform;
+  connected: boolean;
+  onConnect: () => void;
+  connecting: boolean;
+}) {
+  const isTikTok = provider === "tiktok";
+  return (
+    <div className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+      connected
+        ? "bg-emerald-500/[0.06] border-emerald-500/20"
+        : "bg-indigo-500/[0.06] border-indigo-500/20"
+    }`}>
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+        isTikTok ? "bg-black/60" : "bg-gradient-to-br from-purple-600 to-pink-500"
+      }`}>
+        {isTikTok
+          ? <Music size={20} className="text-white" />
+          : <InstagramIcon className="w-5 h-5 text-white" />}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-200">{isTikTok ? "TikTok" : "Instagram"}</p>
+        <p className="text-xs text-slate-500 mt-0.5">
+          {connected ? "Compte connecté" : "Clique pour connecter"}
+        </p>
+      </div>
+
+      {connected ? (
+        <CheckCircle2 size={20} className="text-emerald-400 flex-shrink-0" />
+      ) : (
+        <button
+          onClick={onConnect}
+          disabled={connecting}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 hover:text-indigo-200 transition-all disabled:opacity-50 flex-shrink-0"
+        >
+          {connecting
+            ? <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            : <ExternalLink size={12} />}
+          {connecting ? "En cours…" : "Connecter"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main modal ────────────────────────────────────────────────────────────────
 
 interface CreatorOnboardingModalProps {
@@ -79,35 +141,116 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
 
   // ── flow state ──────────────────────────────────────────────────────────────
   const [step,    setStep]    = useState<Step>("platform");
-  const [current, setCurrent] = useState<Platform>("tiktok"); // which platform we're adding now
-  const [done,    setDone]    = useState<Platform[]>([]);      // platforms already confirmed
+  const [current, setCurrent] = useState<Platform>("tiktok");
+  const [done,    setDone]    = useState<Platform[]>([]);
 
-  // ── form state ──────────────────────────────────────────────────────────────
+  // ── step 2: social connect (OAuth) ───────────────────────────────────────────
+  const [socialStatus,  setSocialStatus]  = useState<SocialStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [connecting,    setConnecting]    = useState<Platform | null>(null);
+  const [connectError,  setConnectError]  = useState<string | null>(null);
+  const popupRef = useRef<Window | null>(null);
+  const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── step 3+: username form ────────────────────────────────────────────────────
   const [username, setUsername] = useState("");
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [preview,  setPreview]  = useState<ProfilePreview | null>(null);
   const [skipping, setSkipping] = useState(false);
 
-  // ── platforms in order ──────────────────────────────────────────────────────
-  const platformQueue: Platform[] = (["tiktok", "instagram"] as Platform[]).filter(
-    (p) => selected[p]
-  );
+  // ── platform queue ────────────────────────────────────────────────────────────
+  const platformQueue: Platform[] = (["tiktok", "instagram"] as Platform[]).filter(p => selected[p]);
   const totalPlatforms = platformQueue.length;
-  const currentIndex   = platformQueue.indexOf(current) + 1; // 1-based
+  const currentIndex   = platformQueue.indexOf(current) + 1;
 
-  // ── Step 1 → 2 ──────────────────────────────────────────────────────────────
+  // ── Fetch social status ───────────────────────────────────────────────────────
+  const fetchSocialStatus = async () => {
+    setStatusLoading(true);
+    try {
+      const res  = await fetch("/api/creator/social-status");
+      const data = await res.json() as SocialStatus;
+      setSocialStatus(data);
+    } catch { /* ignore */ }
+    finally  { setStatusLoading(false); }
+  };
+
+  useEffect(() => {
+    if (step === "social-connect") fetchSocialStatus();
+  }, [step]);
+
+  // ── postMessage listener ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "social-auth-success") {
+        setConnecting(null);
+        setConnectError(null);
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        fetchSocialStatus();
+      } else if (e.data?.type === "social-auth-error") {
+        setConnecting(null);
+        setConnectError("La connexion a échoué, réessaie.");
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // ── Determine visible cards in social-connect ─────────────────────────────────
+  // Show platforms that were selected in step 1 AND are relevant for this login provider
+  const { loginProvider = "email", tiktok: ttOk = false, instagram: igOk = false } = socialStatus ?? {};
+  const showTikTok    = selected.tiktok    && (loginProvider === "instagram" || loginProvider === "google" || loginProvider === "email");
+  const showInstagram = selected.instagram && (loginProvider === "tiktok"    || loginProvider === "google" || loginProvider === "email");
+
+  // ── OAuth connect ─────────────────────────────────────────────────────────────
+  function connectOAuth(provider: Platform) {
+    setConnecting(provider);
+    setConnectError(null);
+    const url = provider === "tiktok" ? "/api/auth/tiktok/login" : "/api/auth/instagram/login";
+    popupRef.current = openPopup(url);
+
+    pollRef.current = setInterval(() => {
+      if (popupRef.current?.closed) {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        setConnecting(null);
+        fetchSocialStatus();
+      }
+    }, 800);
+  }
+
+  // ── Step 1 → step 2 ──────────────────────────────────────────────────────────
   function startFlow() {
     if (!selected.tiktok && !selected.instagram) return;
     const first = selected.tiktok ? "tiktok" : "instagram";
     setCurrent(first);
-    setUsername("");
-    setPreview(null);
-    setError(null);
-    setStep("username");
+    setStep("social-connect");
   }
 
-  // ── Step 2: fetch preview ────────────────────────────────────────────────────
+  // ── Step 2 → step 3 (or success) ─────────────────────────────────────────────
+  function continueFromSocialConnect() {
+    const remainingQueue = platformQueue.filter(p => {
+      if (p === "tiktok"    && ttOk) return false;
+      if (p === "instagram" && igOk) return false;
+      return true;
+    });
+
+    if (remainingQueue.length === 0) {
+      setDone(platformQueue);
+      setStep("success");
+    } else {
+      setCurrent(remainingQueue[0]);
+      setUsername("");
+      setPreview(null);
+      setError(null);
+      setStep("username");
+    }
+  }
+
+  // ── Step 3: fetch preview ─────────────────────────────────────────────────────
   async function handlePreview() {
     const handle = username.replace("@", "").trim();
     if (!handle) { setError("Saisis ton nom d'utilisateur"); return; }
@@ -130,7 +273,7 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
     }
   }
 
-  // ── Step 3: confirm ownership ─────────────────────────────────────────────────
+  // ── Step 4: confirm ownership ─────────────────────────────────────────────────
   async function handleConfirm() {
     if (!preview) return;
     setLoading(true);
@@ -147,8 +290,7 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
       const newDone = [...done, preview.platform];
       setDone(newDone);
 
-      // Check if there's a next platform to process
-      const nextPlatform = platformQueue.find((p) => !newDone.includes(p));
+      const nextPlatform = platformQueue.find(p => !newDone.includes(p) && !(p === "tiktok" ? ttOk : igOk));
       if (nextPlatform) {
         setCurrent(nextPlatform);
         setUsername("");
@@ -174,16 +316,21 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
     onComplete();
   }
 
-  // ── Progress % ───────────────────────────────────────────────────────────────
+  // ── Progress ──────────────────────────────────────────────────────────────────
   const progressPct =
-    step === "platform" ? 20 :
-    step === "username" ? (totalPlatforms === 2 ? (currentIndex === 1 ? 40 : 65) : 50) :
-    step === "confirm"  ? (totalPlatforms === 2 ? (currentIndex === 1 ? 55 : 80) : 70) : 100;
+    step === "platform"       ? 15 :
+    step === "social-connect" ? 40 :
+    step === "username"       ? 60 :
+    step === "confirm"        ? 80 : 100;
 
   const stepLabel =
-    step === "platform" ? "Choix des plateformes" :
-    step === "username" ? (totalPlatforms > 1 ? `${platformLabel(current)} (${currentIndex}/${totalPlatforms})` : platformLabel(current)) :
-    step === "confirm"  ? "Confirmation" : "Terminé";
+    step === "platform"       ? "Choix des plateformes" :
+    step === "social-connect" ? "Vérification des comptes" :
+    step === "username"       ? (totalPlatforms > 1 ? `${platformLabel(current)} (${currentIndex}/${totalPlatforms})` : platformLabel(current)) :
+    step === "confirm"        ? "Confirmation" : "Terminé";
+
+  // All platforms already connected via OAuth (success case for step 2)
+  const allOAuthDone = platformQueue.every(p => p === "tiktok" ? ttOk : igOk);
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -263,10 +410,7 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                   return (
                     <button
                       key={p}
-                      onClick={() => {
-                        const next = { ...selected, [p]: !selected[p] };
-                        setSelected(next);
-                      }}
+                      onClick={() => setSelected(prev => ({ ...prev, [p]: !prev[p] }))}
                       className={cn(
                         "relative flex flex-col items-center gap-3 p-5 rounded-xl border transition-all duration-200",
                         active
@@ -274,7 +418,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                           : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.15]"
                       )}
                     >
-                      {/* Checkmark */}
                       <div className={cn(
                         "absolute top-2.5 right-2.5 w-4 h-4 rounded-full border flex items-center justify-center transition-all",
                         active ? "border-indigo-400 bg-indigo-500" : "border-white/20 bg-transparent"
@@ -292,7 +435,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                 })}
               </div>
 
-              {/* CTA */}
               <button
                 onClick={startFlow}
                 disabled={!selected.tiktok && !selected.instagram}
@@ -305,7 +447,106 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
           )}
 
           {/* ════════════════════════════════════════════
-              STEP 2 — Enter username
+              STEP 2 — OAuth social verification
+          ════════════════════════════════════════════ */}
+          {step === "social-connect" && (
+            <div className="space-y-5">
+              {/* Header */}
+              <div>
+                <p className="text-sm font-semibold text-slate-200">
+                  {loginProvider === "google" || loginProvider === "email"
+                    ? "Connecte au moins un réseau social"
+                    : loginProvider === "tiktok"
+                    ? "Connecte ton compte Instagram"
+                    : "Connecte ton compte TikTok"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  {loginProvider === "google" || loginProvider === "email"
+                    ? "Les brands vérifient tes statistiques sociales avant de te contacter."
+                    : "Renforce ton profil creator en liant tes deux comptes."}
+                </p>
+              </div>
+
+              {/* Loading skeleton */}
+              {statusLoading && (
+                <div className="space-y-3">
+                  {[0, 1].map(i => (
+                    <div key={i} className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+                  ))}
+                </div>
+              )}
+
+              {/* Cards */}
+              {!statusLoading && socialStatus && (
+                <div className="space-y-3">
+                  {showTikTok && (
+                    <OAuthCard
+                      provider="tiktok"
+                      connected={ttOk}
+                      onConnect={() => connectOAuth("tiktok")}
+                      connecting={connecting === "tiktok"}
+                    />
+                  )}
+                  {showInstagram && (
+                    <OAuthCard
+                      provider="instagram"
+                      connected={igOk}
+                      onConnect={() => connectOAuth("instagram")}
+                      connecting={connecting === "instagram"}
+                    />
+                  )}
+                  {/* Edge case: loginProvider's own platform selected — show it as already connected */}
+                  {loginProvider === "tiktok" && selected.tiktok && (
+                    <OAuthCard
+                      provider="tiktok"
+                      connected={true}
+                      onConnect={() => {}}
+                      connecting={false}
+                    />
+                  )}
+                  {loginProvider === "instagram" && selected.instagram && (
+                    <OAuthCard
+                      provider="instagram"
+                      connected={true}
+                      onConnect={() => {}}
+                      connecting={false}
+                    />
+                  )}
+                </div>
+              )}
+
+              {connectError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+                  <p className="text-xs text-red-300">{connectError}</p>
+                </div>
+              )}
+
+              {/* Continue */}
+              <button
+                onClick={continueFromSocialConnect}
+                disabled={statusLoading || !!connecting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-sm font-semibold hover:from-indigo-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.01] shadow-lg shadow-indigo-500/20"
+              >
+                {connecting
+                  ? <><Loader2 size={16} className="animate-spin" /> En cours…</>
+                  : allOAuthDone
+                  ? <><CheckCircle size={16} /> Continuer</>
+                  : <><ArrowRight size={16} /> Continuer</>
+                }
+              </button>
+
+              <button
+                onClick={() => setStep("platform")}
+                className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
+              >
+                ← Retour
+              </button>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════
+              STEP 3 — Enter username
           ════════════════════════════════════════════ */}
           {step === "username" && (
             <div className="space-y-5">
@@ -315,15 +556,14 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                 <span className="text-sm font-medium text-slate-200">{platformLabel(current)}</span>
                 {totalPlatforms > 1 && (
                   <div className="ml-auto flex gap-1.5">
-                    {platformQueue.map((p, i) => (
+                    {platformQueue.map((p) => (
                       <div
                         key={p}
                         className={cn(
                           "h-1.5 rounded-full transition-all",
                           done.includes(p)      ? "w-5 bg-emerald-500" :
                           p === current         ? "w-5 bg-indigo-400"  :
-                          "w-3 bg-white/[0.15]",
-                          i === 0 && ""
+                          "w-3 bg-white/[0.15]"
                         )}
                       />
                     ))}
@@ -371,16 +611,16 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
               </button>
 
               <button
-                onClick={() => { setStep("platform"); setError(null); setUsername(""); setPreview(null); }}
+                onClick={() => { setStep("social-connect"); setError(null); setUsername(""); setPreview(null); }}
                 className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
               >
-                ← Changer de plateforme
+                ← Retour
               </button>
             </div>
           )}
 
           {/* ════════════════════════════════════════════
-              STEP 3 — Confirm profile
+              STEP 4 — Confirm profile
           ════════════════════════════════════════════ */}
           {step === "confirm" && preview && (
             <div className="space-y-5">
@@ -391,7 +631,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
               {/* Profile card */}
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-3">
                 <div className="flex items-center gap-4">
-                  {/* Avatar */}
                   <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 ring-2 ring-white/[0.06]">
                     {preview.avatar ? (
                       <Image
@@ -409,7 +648,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <PlatformBadge platform={preview.platform} size="sm" />
@@ -433,7 +671,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                   </div>
                 </div>
 
-                {/* Bio */}
                 {preview.bio && (
                   <p className="text-xs text-slate-500 border-t border-white/[0.05] pt-3 leading-relaxed line-clamp-2">
                     {preview.bio}
@@ -441,7 +678,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                 )}
               </div>
 
-              {/* Admin review note */}
               <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
                 <Clock size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-300 leading-relaxed">
@@ -456,7 +692,6 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                 </div>
               )}
 
-              {/* Yes / No buttons */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => { setStep("username"); setPreview(null); setError(null); setUsername(""); }}
@@ -479,11 +714,10 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
           )}
 
           {/* ════════════════════════════════════════════
-              STEP 4 — Success
+              STEP 5 — Success
           ════════════════════════════════════════════ */}
           {step === "success" && (
             <div className="space-y-5 text-center">
-              {/* Badge */}
               <div className="flex justify-center">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/20 to-indigo-500/20 border-2 border-emerald-500/40 flex items-center justify-center">
                   <CheckCircle size={36} className="text-emerald-400" />
@@ -499,24 +733,36 @@ export default function CreatorOnboardingModal({ onComplete }: CreatorOnboarding
                 </p>
               </div>
 
-              {/* Connected platforms */}
+              {/* Connected platforms summary */}
               <div className="space-y-2">
-                {done.map((p) => (
-                  <div
-                    key={p}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"
-                  >
-                    <PlatformBadge platform={p} size="sm" />
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-slate-200">{platformLabel(p)}</p>
-                      <p className="text-xs text-slate-500">En attente de vérification</p>
+                {platformQueue.map((p) => {
+                  const viaOAuth = p === "tiktok" ? ttOk : igOk;
+                  const viaUsername = done.includes(p);
+                  if (!viaOAuth && !viaUsername) return null;
+                  return (
+                    <div
+                      key={p}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"
+                    >
+                      <PlatformBadge platform={p} size="sm" />
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-medium text-slate-200">{platformLabel(p)}</p>
+                        <p className="text-xs text-slate-500">
+                          {viaOAuth ? "Connecté via OAuth" : "En attente de vérification"}
+                        </p>
+                      </div>
+                      <div className={cn(
+                        "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full",
+                        viaOAuth
+                          ? "text-emerald-400 bg-emerald-500/10"
+                          : "text-amber-400 bg-amber-500/10"
+                      )}>
+                        {viaOAuth ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                        <span>{viaOAuth ? "Vérifié" : "24h"}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
-                      <Clock size={10} />
-                      <span>24h</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <button

@@ -3,12 +3,18 @@ import * as path from "path";
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg }    from "@prisma/adapter-pg";
+import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg(process.env.DATABASE_URL!);
+const prisma  = new PrismaClient({ adapter });
 
 async function main() {
   console.log("Starting seed...");
   console.log("DATABASE_URL set:", !!process.env.DATABASE_URL);
+
+  const adminPassword = await bcrypt.hash("Admin@2025!", 12);
+  const brandPassword = await bcrypt.hash("Brand@2025!", 12);
 
   // Clean existing data in dependency order
   console.log("Cleaning existing data...");
@@ -30,9 +36,11 @@ async function main() {
   try {
     admin = await prisma.user.create({
       data: {
-        email: "admin@mafluencer.ma",
-        name: "Admin Mafluencer",
-        role: "ADMIN",
+        email:         "admin@mafluencer.ma",
+        name:          "Admin Mafluencer",
+        role:          "ADMIN",
+        password:      adminPassword,
+        emailVerified: new Date(),
       },
     });
     console.log("  Created admin:", admin.email);
@@ -47,9 +55,11 @@ async function main() {
   try {
     brandUser = await prisma.user.create({
       data: {
-        email: "brand@mafluencer.ma",
-        name: "Marjane Holdings",
-        role: "BRAND",
+        email:         "brand@mafluencer.ma",
+        name:          "Marjane Holdings",
+        role:          "BRAND",
+        password:      brandPassword,
+        emailVerified: new Date(),
         brandProfile: {
           create: {
             companyName: "Marjane Holdings",

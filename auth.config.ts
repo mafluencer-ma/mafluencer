@@ -6,13 +6,9 @@ import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 
 
-// Same secret hardcoded in lib/auth.ts — must be byte-for-byte identical so
-// middleware can verify session JWTs created by the Node.js auth routes.
-const SECRET = "4a8f2c1b9e3d7056af82c14b9f3e7025da8f12c4b9e3067fa82c14b9e307256";
-
 export const authConfig: NextAuthConfig = {
   trustHost: true,
-  secret: SECRET,
+  secret: process.env.NEXTAUTH_SECRET,
 
   pages: {
     signIn: "/auth/signin",

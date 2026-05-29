@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Flame, ArrowLeft, CheckCircle, AlertCircle,
-  Trophy, Tag, Calendar, DollarSign, Users, Hash,
+  Trophy, Tag, Calendar, Users, Hash, Film, Play, FileImage,
 } from "lucide-react";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
@@ -27,31 +27,61 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
 };
 
 const DURATION_OPTIONS = [
-  { value: "3",  label: "3 jours",      sub: "Challenge express" },
-  { value: "7",  label: "7 jours",      sub: "Durée standard" },
-  { value: "14", label: "2 semaines",   sub: "Large audience" },
-  { value: "30", label: "1 mois",       sub: "Challenge de fond" },
+  { value: "3",  label: "3 jours",    sub: "Challenge express" },
+  { value: "7",  label: "7 jours",    sub: "Durée standard" },
+  { value: "14", label: "2 semaines", sub: "Large audience" },
+  { value: "30", label: "1 mois",     sub: "Challenge de fond" },
 ];
 
+const CONTENT_TYPES = [
+  { value: "video", label: "Vidéo", icon: Play },
+  { value: "reel",  label: "Reel",  icon: Film },
+  { value: "image", label: "Image", icon: FileImage },
+  { value: "post",  label: "Post",  icon: FileImage },
+];
+
+function InstagramIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
+function TikTokIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.53V6.78a4.85 4.85 0 0 1-1.01-.09z" />
+    </svg>
+  );
+}
+
 type Form = {
-  title: string;
-  category: string;
-  description: string;
-  hashtag: string;
-  rules: string;
-  prizeAmount: string;
-  duration: string;
+  title:           string;
+  category:        string;
+  description:     string;
+  brief:           string;
+  hashtag:         string;
+  rules:           string;
+  prizeAmount:     string;
+  duration:        string;
   maxParticipants: string;
+  allowedPlatforms:string[];
+  contentTypes:    string[];
 };
 
 type Step = 0 | 1 | 2 | 3;
-const STEPS = ["Concept", "Règles & Hashtag", "Budget & durée", "Confirmation"] as const;
+const STEPS = ["Concept", "Règles & Plateformes", "Budget & durée", "Confirmation"] as const;
 
 export default function NewChallengeContent() {
   const [step, setStep] = useState<Step>(0);
   const [form, setForm] = useState<Form>({
-    title: "", category: "Humour", description: "", hashtag: "",
+    title: "", category: "Humour", description: "", brief: "", hashtag: "",
     rules: "", prizeAmount: "", duration: "7", maxParticipants: "",
+    allowedPlatforms: ["instagram", "tiktok"],
+    contentTypes:     ["video"],
   });
   const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
   const [loading, setLoading] = useState(false);
@@ -60,6 +90,22 @@ export default function NewChallengeContent() {
   function set(k: keyof Form, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
     setErrors((e) => ({ ...e, [k]: undefined }));
+  }
+
+  function togglePlatform(p: string) {
+    setForm((f) => {
+      const has = f.allowedPlatforms.includes(p);
+      const next = has ? f.allowedPlatforms.filter((x) => x !== p) : [...f.allowedPlatforms, p];
+      return { ...f, allowedPlatforms: next.length ? next : [p] }; // keep at least one
+    });
+  }
+
+  function toggleContentType(ct: string) {
+    setForm((f) => {
+      const has = f.contentTypes.includes(ct);
+      const next = has ? f.contentTypes.filter((x) => x !== ct) : [...f.contentTypes, ct];
+      return { ...f, contentTypes: next.length ? next : [ct] };
+    });
   }
 
   function validateStep(): boolean {
@@ -92,14 +138,18 @@ export default function NewChallengeContent() {
       endDate.setDate(endDate.getDate() + Number(form.duration));
 
       const body: Record<string, unknown> = {
-        title:       form.title,
-        description: form.description,
-        category:    form.category,
-        type:        "SPONSORED",
-        startDate:   now.toISOString(),
-        endDate:     endDate.toISOString(),
-        rules:       form.rules,
-        prizeAmount: Number(form.prizeAmount),
+        title:            form.title,
+        description:      form.description,
+        brief:            form.brief || undefined,
+        category:         form.category,
+        type:             "SPONSORED",
+        startDate:        now.toISOString(),
+        endDate:          endDate.toISOString(),
+        rules:            form.rules,
+        prizeAmount:      Number(form.prizeAmount),
+        hashtag:          form.hashtag || undefined,
+        allowedPlatforms: form.allowedPlatforms,
+        contentTypes:     form.contentTypes,
       };
 
       const res  = await fetch("/api/challenges", {
@@ -144,7 +194,7 @@ export default function NewChallengeContent() {
                 <Button variant="secondary">Dashboard</Button>
               </Link>
               <Link href="/dashboard/brand/challenges/new">
-                <Button variant="primary" onClick={() => { setSubmitted(false); setStep(0); setForm({ title: "", category: "Humour", description: "", hashtag: "", rules: "", prizeAmount: "", duration: "7", maxParticipants: "" }); }}>
+                <Button variant="primary" onClick={() => { setSubmitted(false); setStep(0); setForm({ title: "", category: "Humour", description: "", brief: "", hashtag: "", rules: "", prizeAmount: "", duration: "7", maxParticipants: "", allowedPlatforms: ["instagram", "tiktok"], contentTypes: ["video"] }); }}>
                   Créer un autre défi
                 </Button>
               </Link>
@@ -229,19 +279,33 @@ export default function NewChallengeContent() {
             {/* Description */}
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-300">
-                Description <span className="text-slate-600 font-normal">({form.description.length}/500)</span>
+                Description publique <span className="text-slate-600 font-normal">({form.description.length}/500)</span>
               </label>
               <textarea
                 value={form.description}
                 onChange={(e) => set("description", e.target.value.slice(0, 500))}
-                rows={4}
-                placeholder="Décris le défi : qu'est-ce que les creators doivent faire, quel est le message..."
+                rows={3}
+                placeholder="Résumé du défi visible sur la carte publique…"
                 className={cn(
                   "w-full bg-slate-800/60 border rounded-[12px] px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/20 transition-all resize-none",
                   errors.description ? "border-red-500/50" : "border-white/8 focus:border-indigo-500/50"
                 )}
               />
               {errors.description && <p className="text-xs text-red-400">{errors.description}</p>}
+            </div>
+
+            {/* Brief (detailed) */}
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-slate-300">
+                Brief détaillé <span className="text-slate-600 font-normal">(optionnel — visible après inscription au défi)</span>
+              </label>
+              <textarea
+                value={form.brief}
+                onChange={(e) => set("brief", e.target.value.slice(0, 3000))}
+                rows={4}
+                placeholder="Contexte de marque, messages clés, ton souhaité, exemples de contenu inspirant…"
+                className="w-full bg-slate-800/60 border border-white/8 rounded-[12px] px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all resize-none"
+              />
             </div>
 
             <div className="flex justify-end pt-2">
@@ -276,6 +340,60 @@ export default function NewChallengeContent() {
                 />
               </div>
               {errors.hashtag && <p className="text-xs text-red-400">{errors.hashtag}</p>}
+            </div>
+
+            {/* Platforms */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">Plateformes autorisées</label>
+              <div className="flex gap-2">
+                {([
+                  { value: "instagram", label: "Instagram", icon: <InstagramIcon size={14} className="text-pink-400" /> },
+                  { value: "tiktok",    label: "TikTok",    icon: <TikTokIcon size={14} className="text-slate-300" /> },
+                ]).map(({ value, label, icon }) => {
+                  const selected = form.allowedPlatforms.includes(value);
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => togglePlatform(value)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-[10px] border text-sm transition-all",
+                        selected
+                          ? "bg-indigo-500/10 border-indigo-500/40 text-indigo-300"
+                          : "border-white/8 text-slate-500 hover:text-slate-300"
+                      )}
+                    >
+                      {icon}{label}
+                      {selected && <CheckCircle size={13} className="text-emerald-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Content types */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">Types de contenu acceptés</label>
+              <div className="flex flex-wrap gap-2">
+                {CONTENT_TYPES.map(({ value, label, icon: Icon }) => {
+                  const selected = form.contentTypes.includes(value);
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => toggleContentType(value)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-all",
+                        selected
+                          ? "bg-indigo-500/10 border-indigo-500/40 text-indigo-300"
+                          : "border-white/8 text-slate-500 hover:text-slate-300"
+                      )}
+                    >
+                      <Icon size={12} />{label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Rules */}
@@ -416,11 +534,15 @@ export default function NewChallengeContent() {
                     <p className="text-[10px] text-slate-600">MAD à gagner</p>
                   </div>
                 </div>
-                <div className="flex gap-3 text-xs text-slate-600 pt-1 border-t border-white/8">
-                  <span>#{form.hashtag || "—"}</span>
-                  <span>·</span>
-                  <span>{DURATION_OPTIONS.find(d => d.value === form.duration)?.label}</span>
-                  {form.maxParticipants && <><span>·</span><span>max {form.maxParticipants} participants</span></>}
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-white/8">
+                  {form.hashtag && <span className="text-xs text-indigo-400">#{form.hashtag}</span>}
+                  <span className="text-xs text-slate-600">·</span>
+                  <span className="text-xs text-slate-600">{DURATION_OPTIONS.find(d => d.value === form.duration)?.label}</span>
+                  {form.maxParticipants && <><span className="text-xs text-slate-600">·</span><span className="text-xs text-slate-600">max {form.maxParticipants}</span></>}
+                  <span className="text-xs text-slate-600">·</span>
+                  <span className="text-xs text-slate-500">{form.allowedPlatforms.join(" + ")}</span>
+                  <span className="text-xs text-slate-600">·</span>
+                  <span className="text-xs text-slate-500">{form.contentTypes.join(", ")}</span>
                 </div>
               </div>
             </div>

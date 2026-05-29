@@ -12,7 +12,6 @@ import {
   Briefcase,
   BarChart3,
   Search,
-  PlusCircle,
   ListChecks,
   CreditCard,
   Users,
@@ -36,8 +35,8 @@ const brandNav = [
   { href: "/dashboard/brand", label: "Vue d'ensemble", icon: LayoutDashboard },
   { href: "/dashboard/brand/discover", label: "Découvrir", icon: Search },
   { href: "/dashboard/brand/missions", label: "Missions", icon: ListChecks },
-  { href: "/dashboard/brand/missions/new", label: "Créer mission", icon: PlusCircle },
-  { href: "/dashboard/brand/challenges/new", label: "Créer défi", icon: Flame },
+  { href: "/dashboard/brand/challenges", label: "Défis", icon: Flame },
+  { href: "/dashboard/brand/stats", label: "Statistiques", icon: BarChart3 },
   { href: "/dashboard/brand/billing", label: "Facturation", icon: CreditCard },
 ];
 

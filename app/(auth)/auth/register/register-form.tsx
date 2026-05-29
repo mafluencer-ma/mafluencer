@@ -260,7 +260,7 @@ export default function RegisterForm() {
                     variant="secondary"
                     size="lg"
                     className="w-full mb-3 bg-black hover:bg-zinc-900 border-zinc-800 text-white"
-                    onClick={() => handleOAuth("tiktok", setLoadingTikTok)}
+                    onClick={() => { setLoadingTikTok(true); window.location.href = "/api/auth/tiktok/login"; }}
                     loading={loadingTikTok}
                   >
                     <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -276,7 +276,7 @@ export default function RegisterForm() {
                     variant="secondary"
                     size="lg"
                     className="w-full mb-3 bg-gradient-to-r from-[#833AB4] via-[#C13584] to-[#E1306C] hover:opacity-90 border-0 text-white"
-                    onClick={() => handleOAuth("instagram", setLoadingInstagram)}
+                    onClick={() => { setLoadingInstagram(true); window.location.href = "/api/auth/instagram/login"; }}
                     loading={loadingInstagram}
                   >
                     <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">

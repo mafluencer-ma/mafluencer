@@ -15,10 +15,9 @@
 // and the callback that verifies it; if the env var is missing or empty the
 // JWT decode fails → "state value could not be parsed".
 // TODO: move these to Hostinger env panel and remove the hardcoded values.
-process.env.AUTH_URL      = "https://mafluencer.ma";
-process.env.NEXTAUTH_URL  = "https://mafluencer.ma";
-process.env.AUTH_SECRET   = "4a8f2c1b9e3d7056af82c14b9f3e7025da8f12c4b9e3067fa82c14b9e307256";
-process.env.NEXTAUTH_SECRET = process.env.AUTH_SECRET;
+const BASE_URL = process.env.BASE_URL ?? "https://medinamaroc.com";
+process.env.AUTH_URL     = BASE_URL;
+process.env.NEXTAUTH_URL = BASE_URL;
 
 import NextAuth from "next-auth";
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers";
@@ -33,7 +32,7 @@ import bcrypt from "bcryptjs";
 // ── Canonical callback URLs (hardcoded for production) ────────────────────────
 // By hardcoding the production URLs here we guarantee authorization request and
 // token exchange always send the exact same redirect_uri.
-const APP_URL   = "https://mafluencer.ma";
+const APP_URL   = process.env.BASE_URL ?? "https://medinamaroc.com";
 const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
 
 
@@ -47,7 +46,7 @@ const TIKTOK_CB = `${APP_URL}/api/auth/callback/tiktok`;
 // options.clientId / clientSecret are used directly from the closure so the
 // values are always the ones we passed in, not what NextAuth copies to provider.
 function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
-  const CB = "https://mafluencer.ma/api/auth/callback/tiktok";
+  const CB = `${process.env.BASE_URL ?? "https://medinamaroc.com"}/api/auth/callback/tiktok`;
 
   return {
     id:   "tiktok",
@@ -69,8 +68,6 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
       async request({ params }: { params: Record<string, unknown> }) {
         const code = params.code as string;
 
-        console.log("[TikTok] token exchange → code:", code, "| redirect_uri:", CB);
-
         const body = new URLSearchParams({
           client_key:    options.clientId!,
           client_secret: options.clientSecret!,
@@ -86,7 +83,6 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
         });
 
         const data = await res.json();
-        console.log("[TikTok] token response:", JSON.stringify(data));
 
         if (!res.ok || data.error) {
           throw new Error(data.error_description ?? "TikTok token exchange failed");
@@ -151,7 +147,7 @@ function TikTok(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<
 // they must be byte-for-byte identical or Instagram returns "invalid_request".
 // options.clientId/clientSecret used from closure (same pattern as TikTok fix).
 function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConfig<Record<string, unknown>> {
-  const CB = "https://mafluencer.ma/api/auth/callback/instagram";
+  const CB = `${process.env.BASE_URL ?? "https://medinamaroc.com"}/api/auth/callback/instagram`;
 
   return {
     id:   "instagram",
@@ -162,8 +158,9 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
       url: "https://www.instagram.com/oauth/authorize",
       params: {
         client_id:     options.clientId,
+        force_reauth:  "true",
         response_type: "code",
-        scope:         "instagram_basic",
+        scope:         "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights",
         redirect_uri:  CB,
       },
     },
@@ -172,8 +169,6 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
       url: "https://api.instagram.com/oauth/access_token",
       async request({ params }: { params: Record<string, unknown> }) {
         const code = params.code as string;
-
-        console.log("[Instagram] token exchange → code:", code, "| redirect_uri:", CB);
 
         const body = new URLSearchParams({
           client_id:     options.clientId!,
@@ -190,7 +185,6 @@ function Instagram(options: OAuthUserConfig<Record<string, unknown>>): OAuthConf
         });
 
         const data = await res.json();
-        console.log("[Instagram] token response:", JSON.stringify(data));
 
         if (!res.ok || data.error_type || data.error) {
           throw new Error(
@@ -305,12 +299,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     TikTok({
-      clientId:     "sbawpvgcz2muf15jtr",
-      clientSecret: "Au5WTjZddnbibPDHT4WVlzpOBn1lxO93",
+      clientId:     process.env.TIKTOK_CLIENT_KEY!,
+      clientSecret: process.env.TIKTOK_CLIENT_SECRET!,
     }),
     Instagram({
-      clientId:     "26435075029485553",
-      clientSecret: "3b5b49ac9b4fc326bd7f38c19046dc44",
+      clientId:     process.env.INSTAGRAM_CLIENT_ID!,
+      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET!,
     }),
     Credentials({
       credentials: {
@@ -528,7 +522,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 
-  secret:    process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  secret:    process.env.NEXTAUTH_SECRET,
   trustHost: true,
 });
 

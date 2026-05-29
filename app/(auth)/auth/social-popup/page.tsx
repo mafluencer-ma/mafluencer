@@ -15,9 +15,14 @@ function SocialPopup() {
 
   useEffect(() => {
     if (!provider) return;
-    // Small delay so the page renders before redirect
     const t = setTimeout(() => {
-      signIn(provider, { callbackUrl: "/auth/social-callback" });
+      if (provider === "instagram") {
+        window.location.href = "/api/auth/instagram/login";
+      } else if (provider === "tiktok") {
+        window.location.href = "/api/auth/tiktok/login";
+      } else {
+        signIn(provider, { callbackUrl: "/auth/social-callback" });
+      }
     }, 200);
     return () => clearTimeout(t);
   }, [provider]);

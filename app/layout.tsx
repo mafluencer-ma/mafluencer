@@ -28,6 +28,7 @@ export const metadata: Metadata = {
   icons: {
     icon:  "/fav.png",
     apple: "/fav.png",
+    shortcut: "/fav.png",
   },
   openGraph: {
     title:       "Mafluencer",

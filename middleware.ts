@@ -54,8 +54,9 @@ export default auth(function middleware(
     return Response.redirect(new URL("/dashboard/brand", req.url));
   }
 
-  // ── /auth/signin → skip if already authenticated ────────────────────────────
-  if (pathname === "/auth/signin" && isAuthed) {
+  // ── auth pages → redirect to dashboard if already authenticated ───────────────
+  const authOnlyPaths = ["/auth/signin", "/auth/register", "/auth/complete", "/auth/social-popup"];
+  if (authOnlyPaths.some(p => pathname === p || pathname.startsWith(p + "/")) && isAuthed) {
     const dest =
       isAdmin            ? "/dashboard/admin" :
       role === "BRAND"   ? "/dashboard/brand" :

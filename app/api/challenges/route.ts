@@ -11,12 +11,21 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const status   = searchParams.get("status") ?? "ACTIVE";
   const category = searchParams.get("category");
+  const mine     = searchParams.get("mine") === "true";
   const page     = Math.max(1, Number(searchParams.get("page") ?? 1));
   const limit    = Math.min(50, Math.max(1, Number(searchParams.get("limit") ?? 20)));
 
   const where: Record<string, unknown> = {};
   if (status !== "all") where.status = status;
   if (category) where.category = category;
+
+  if (mine) {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+    const bp = await prisma.brandProfile.findUnique({ where: { userId: user.id }, select: { id: true } });
+    if (!bp) return ok({ challenges: [], pagination: { page, limit, total: 0 } });
+    where.brandId = bp.id;
+  }
 
   const [challenges, total] = await Promise.all([
     prisma.challenge.findMany({
@@ -71,18 +80,32 @@ export async function POST(req: NextRequest) {
   if (data.startDate >= data.endDate)
     return err("La date de fin doit être après la date de début");
 
+  let resolvedBrandId: string | null = null;
+  if (user.role === "BRAND") {
+    const bp = await prisma.brandProfile.findUnique({ where: { userId: user.id }, select: { id: true } });
+    if (!bp) return err("Profil marque introuvable", 404);
+    resolvedBrandId = bp.id;
+  } else if (data.brandId) {
+    resolvedBrandId = data.brandId;
+  }
+
   const challenge = await prisma.challenge.create({
     data: {
-      title:       data.title,
-      description: data.description,
-      category:    data.category,
-      type:        data.type,
-      startDate:   data.startDate,
-      endDate:     data.endDate,
-      prizeAmount: data.prizeAmount,
-      rules:       data.rules,
-      brandId:     user.role === "BRAND" ? user.id : (data.brandId ?? null),
-      status:      "DRAFT",
+      title:            data.title,
+      description:      data.description,
+      brief:            data.brief ?? null,
+      category:         data.category,
+      type:             data.type,
+      startDate:        data.startDate,
+      endDate:          data.endDate,
+      prizeAmount:      data.prizeAmount,
+      rules:            data.rules,
+      hashtag:          data.hashtag ?? null,
+      allowedPlatforms: data.allowedPlatforms ?? ["instagram", "tiktok"],
+      contentTypes:     data.contentTypes ?? ["video"],
+      brandId:          resolvedBrandId,
+      createdById:      user.id,
+      status:           "DRAFT",
     },
   });
 

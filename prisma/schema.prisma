@@ -2,7 +2,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -28,6 +27,12 @@ enum ChallengeStatus {
   ACTIVE
   VOTING
   COMPLETED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
 }
 
 enum SubmissionStatus {
@@ -139,6 +144,7 @@ model User {
   votes           Vote[]
   notifications   Notification[]
   challengesCreated Challenge[]    @relation("ChallengeCreator")
+  socialTokens    SocialToken[]
 }
 
 model CreatorProfile {
@@ -185,20 +191,24 @@ model BrandProfile {
 }
 
 model Challenge {
-  id          String          @id @default(cuid())
-  title       String
-  description String          @db.Text
-  type        ChallengeType   @default(FREE)
-  brandId     String?
-  category    String
-  startDate   DateTime
-  endDate     DateTime
-  prizeAmount Float?
-  rules       String          @db.Text
-  status      ChallengeStatus @default(DRAFT)
-  createdById String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id               String          @id @default(cuid())
+  title            String
+  description      String          @db.Text
+  brief            String?         @db.Text
+  type             ChallengeType   @default(FREE)
+  brandId          String?
+  category         String
+  hashtag          String?
+  allowedPlatforms String[]
+  contentTypes     String[]
+  startDate        DateTime
+  endDate          DateTime
+  prizeAmount      Float?
+  rules            String          @db.Text
+  status           ChallengeStatus @default(DRAFT)
+  createdById      String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   brand       BrandProfile? @relation("BrandChallenges", fields: [brandId], references: [id])
   createdBy   User?         @relation("ChallengeCreator", fields: [createdById], references: [id])
@@ -206,25 +216,35 @@ model Challenge {
 }
 
 model Submission {
-  id           String           @id @default(cuid())
-  challengeId  String
-  creatorId    String
-  videoUrl     String?
-  thumbnailUrl String?
-  caption      String?          @db.Text
-  views        Int              @default(0)
-  likes        Int              @default(0)
-  shares       Int              @default(0)
-  comments     Int              @default(0)
-  score        Float            @default(0)
-  rank         Int?
-  status       SubmissionStatus @default(PENDING)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id                 String             @id @default(cuid())
+  challengeId        String
+  creatorId          String
+  platform           String?            // "instagram" | "tiktok"
+  postUrl            String?            // the social media post URL
+  externalPostId     String?            // platform-specific media/video ID
+  uploadedFileUrl    String?            // R2 URL if content was uploaded via app
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  videoUrl           String?            // kept for backwards compat
+  thumbnailUrl       String?
+  caption            String?            @db.Text
+  views              Int                @default(0)
+  likes              Int                @default(0)
+  shares             Int                @default(0)
+  comments           Int                @default(0)
+  saves              Int                @default(0)
+  score              Float              @default(0)
+  rank               Int?
+  earnedAmount       Float?
+  lastTrackedAt      DateTime?
+  status             SubmissionStatus   @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  creator   User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  challenge Challenge         @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  creator   User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   votes     Vote[]
+  metrics   SubmissionMetric[]
 }
 
 model Mission {
@@ -287,6 +307,36 @@ model Notification {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SocialToken {
+  id             String    @id @default(cuid())
+  userId         String
+  platform       String    // "instagram" | "tiktok"
+  accessToken    String    @db.Text
+  refreshToken   String?   @db.Text
+  expiresAt      DateTime?
+  platformUserId String?
+  username       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+}
+
+model SubmissionMetric {
+  id           String     @id @default(cuid())
+  submissionId String
+  views        Int        @default(0)
+  likes        Int        @default(0)
+  comments     Int        @default(0)
+  shares       Int        @default(0)
+  saves        Int        @default(0)
+  recordedAt   DateTime   @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }
 
 // Editable legal pages (terms, privacy, etc.)

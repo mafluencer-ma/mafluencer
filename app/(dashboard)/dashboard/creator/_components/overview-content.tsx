@@ -13,6 +13,7 @@ import ScoreRing from "@/components/ui/score-ring";
 import Badge from "@/components/ui/badge";
 import CountdownTimer from "@/components/dashboard/countdown-timer";
 import CreatorOnboardingModal from "@/components/creator-onboarding-modal";
+import SocialVerifyBanner from "@/components/dashboard/social-verify-banner";
 import { cn, formatMAD, getLevelGradient, getScoreLevel, formatNumber } from "@/lib/utils";
 
 type ActiveChallenge = {
@@ -134,12 +135,16 @@ export default function CreatorOverviewContent({ session }: { session: Session }
     load();
   }, []);
 
-  // Show onboarding modal for new creators who haven't completed it
+  // Show onboarding modal only once per user (never again after first dismissal)
   useEffect(() => {
     if (!loading && data && !data.onboardingCompleted) {
-      setShowOnboarding(true);
+      const userId = session.user?.id ?? session.user?.email ?? "anon";
+      const key = `onboarding_shown_${userId}`;
+      if (!localStorage.getItem(key)) {
+        setShowOnboarding(true);
+      }
     }
-  }, [loading, data]);
+  }, [loading, data, session]);
 
   const score    = data?.score ?? 0;
   const level    = data?.level ?? getScoreLevel(score);
@@ -208,12 +213,17 @@ export default function CreatorOverviewContent({ session }: { session: Session }
     {showOnboarding && (
       <CreatorOnboardingModal
         onComplete={() => {
+          const userId = session.user?.id ?? session.user?.email ?? "anon";
+          localStorage.setItem(`onboarding_shown_${userId}`, "1");
           setShowOnboarding(false);
           if (data) setData({ ...data, onboardingCompleted: true });
         }}
       />
     )}
     <div className="space-y-6 max-w-6xl">
+      {/* ── Social verification banner ── */}
+      <SocialVerifyBanner />
+
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div>

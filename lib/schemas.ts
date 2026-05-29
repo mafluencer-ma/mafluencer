@@ -25,15 +25,19 @@ export const UpdateCreatorProfileSchema = z.object({
 // ── Challenges ────────────────────────────────────────────────────────────────
 
 export const CreateChallengeSchema = z.object({
-  title:       z.string().min(3).max(100),
-  description: z.string().min(10).max(2000),
-  category:    z.string().min(1),
-  type:        z.enum(["FREE", "SPONSORED"]).default("FREE"),
-  startDate:   z.coerce.date(),
-  endDate:     z.coerce.date(),
-  prizeAmount: z.number().positive().optional(),
-  rules:       z.string().min(10).max(2000),
-  brandId:     z.string().optional(),
+  title:            z.string().min(3).max(100),
+  description:      z.string().min(10).max(2000),
+  brief:            z.string().max(3000).optional(),
+  category:         z.string().min(1),
+  type:             z.enum(["FREE", "SPONSORED"]).default("FREE"),
+  startDate:        z.coerce.date(),
+  endDate:          z.coerce.date(),
+  prizeAmount:      z.number().positive().optional(),
+  rules:            z.string().min(10).max(2000),
+  hashtag:          z.string().max(100).optional(),
+  allowedPlatforms: z.array(z.enum(["instagram", "tiktok"])).min(1).default(["instagram", "tiktok"]),
+  contentTypes:     z.array(z.enum(["video", "image", "reel", "post"])).min(1).default(["video"]),
+  brandId:          z.string().optional(),
 });
 
 export const UpdateChallengeSchema = CreateChallengeSchema.partial().extend({
@@ -41,9 +45,13 @@ export const UpdateChallengeSchema = CreateChallengeSchema.partial().extend({
 });
 
 export const SubmitChallengeSchema = z.object({
-  videoUrl:    z.string().url("URL de vidéo invalide"),
-  thumbnailUrl:z.string().url().optional(),
-  caption:     z.string().max(2200).optional(),
+  platform:       z.enum(["instagram", "tiktok"]),
+  postUrl:        z.string().url("URL du post invalide"),
+  uploadedFileUrl:z.string().url().nullish(),
+  caption:        z.string().max(2200).nullish(),
+  // kept for legacy support
+  videoUrl:       z.string().url().nullish(),
+  thumbnailUrl:   z.string().url().nullish(),
 });
 
 export const VoteSchema = z.object({
@@ -106,5 +114,5 @@ export const UploadQuerySchema = z.object({
     (t) => ["video/mp4", "video/webm", "video/quicktime", "image/jpeg", "image/png", "image/webp"].includes(t),
     "Type de fichier non autorisé"
   ),
-  folder: z.enum(["videos", "thumbnails", "avatars", "portfolios"]).default("videos"),
+  folder: z.enum(["videos", "thumbnails", "avatars", "portfolios", "challenges"]).default("videos"),
 });
